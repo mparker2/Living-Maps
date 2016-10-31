@@ -1,11 +1,25 @@
 ################################################################################################
+# Function 'glmulti2' to find the 'best' fitting generalised linear regression model
+# Author Richard Alexander, Natural England# Date created: 6 July 2016
+# Arguments: 
+# formula = base formula, e.g. "response ~ "
+# variables = data frame containing explanatory and response variables to be tested
+# family = model family, e.g. binomial, gaussian, poisson etc.
 #
-# Richard Alexander
+# The function adds each explanatory variable to the model.  Models are only considered where
+# p values for all variables are significant (< 0.05).  If the model has a lower AIC value 
+# than the best model so far then additional terms are tested to see if they improve the fit.
+# Variable interactions are allowed, but these are limited to two variables for each interaction.
+# This approach doesn't do exhaustive testing but does 'depth first' searching of the most promising
+# term.  Unlike existing functions such as glmulti, the function tests both AIC values and p-values.
+# The best fitting model is returned or NULL if a model couldn't be fitted
+#
+# Version history:
+#
 # 6 July 2016
-#
-# Updated: 28 July 2016
-#    First recursion to search deep and wide
-#
+#    Initial version
+# 28 July 2016
+#    Updated recursion to search deep and wide
 # 1st August 2016
 #    Remove candiate variables where p > 0.25
 # 11 August 2016
@@ -20,8 +34,6 @@
  # 
  #   return((1-p.user)*(1-p.prod))
  # }
-
-
 
 glmulti2 <- function(formula, data, variables, family,  width=NA, maxterms=NA, terms=1, M.best=NULL, numerator=NA, normalised=T)
 {                       
