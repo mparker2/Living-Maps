@@ -11,8 +11,8 @@ library(sqldf)
 library(raster)
 library(data.table)
 
-source("J:/Richard/Analysis/Border Mires statistical classification/R/glmulti2.r")
-source("J:/Richard/Analysis/Border Mires statistical classification/R/zonal_stats.r")
+source("J:/Richard/Analysis/Living Maps/Living-Maps.git/trunk/glmulti2.r")
+source("J:/Richard/Analysis/Living Maps/Living-Maps.git/trunk/zonal_stats.r")
 
 setwd("J:/Richard/Analysis/Living Maps")
 
@@ -31,6 +31,7 @@ aspect <- "data layers/EA_aspect_2014_10m.tif"
 sar <- "data layers/S1A_IW_GRDH_1SDV_20160713_Orb_Cal_Spk_TC_Cumbria_BNG.tif"
 worldclim <- "data layers/worldclim.tif"
 flow <- "data layers/cumbria_flow_accumuation.tif"
+coast <- "data layers/distance_to_coast.tif"
 
 
 list.rasters <- list(s2_blue=c(s2, 1),
@@ -47,36 +48,22 @@ list.rasters <- list(s2_blue=c(s2, 1),
                      sar_vv=c(sar,2),
                      height=c(height,1), 
                      slope=c(slope,1), 
-                     aspect=c(aspect, 1))
-                     #bio1=c(worldclim, 1), 
-                     #bio2=c(worldclim, 2), 
-                     #bio3=c(worldclim, 3), 
-                     #bio4=c(worldclim, 4), 
-                     #bio5=c(worldclim, 5), 
-                     #bio6=c(worldclim, 6), 
-                     #bio7=c(worldclim, 7), 
-                     #bio8=c(worldclim, 8), 
-                     #bio9=c(worldclim, 9), 
-                     #bio10=c(worldclim, 10), 
-                     #bio11=c(worldclim, 11), 
-                     #bio12=c(worldclim, 12), 
-                     #bio13=c(worldclim, 13), 
-                     #bio14=c(worldclim, 14), 
-                     #bio15=c(worldclim, 15), 
-                     #bio16=c(worldclim, 16), 
-                     #bio17=c(worldclim, 17), 
-                     #bio18=c(worldclim, 18), 
-                     #bio19=c(worldclim, 19), 
-                     #flow=c(flow, 1))
+                     aspect=c(aspect, 1),
+                     bio5=c(worldclim, 5), 
+                     bio6=c(worldclim, 6), 
+                     bio13=c(worldclim, 13), 
+                     bio14=c(worldclim, 14), 
+                     flow=c(flow, 1),
+                     coast=c(coast,1))
 
 #############################################################################################
 
-vegetation_indices <- function(df)
-{
-  df$s2_ndvi <- (df$s2_nir - df$s2_red)/(df$s2_nir + df$s2_red)
-  df$s2_ndwi <- (df$s2_green - df$s2_swir1) / (df$s2_green + df$s2_swir1)
-  return(df)
-}
+#vegetation_indices <- function(df)
+#{
+#  df$s2_ndvi <- (df$s2_nir - df$s2_red)/(df$s2_nir + df$s2_red)
+#  df$s2_ndwi <- (df$s2_green - df$s2_swir1) / (df$s2_green + df$s2_swir1)
+#  return(df)
+#}
 
 #############################################################################################
 # 
@@ -107,7 +94,7 @@ zonal_stats_training_data <- zonal_stats(buffer(training.data.shp,1, dissolve=F)
 training.data <- training.data.shp[1]
 training.data$ID <- 1:nrow(training.data)
 training.data <- merge(training.data, zonal_stats_training_data, by="ID")
-training.data <- vegetation_indices(training.data)
+#training.data <- vegetation_indices(training.data)
 
 write.table(training.data, "tables/training_data.txt", sep="\t")
 
@@ -118,6 +105,18 @@ write.table(training.data, "tables/training_data.txt", sep="\t")
 #
 # i.e. fit is highest the closer to the mean of the training data
 #
+
+calcerrors <- function (M, data)
+{
+  # Calculate user and producer errors
+  p <- predict(M, data, type="response")
+  p.prod <- round(sum(p >= 0.5 & data[2] == habitat, na.rm=T) / sum(data[2] == habitat)*100,1)
+  p.user <- round((sum(p >= 0.5 & data[2] == habitat, na.rm=T) + sum(p < 0.5 & data[2] != habitat, na.rm=T)) / nrow(data)*100,1)
+  
+  return(paste(" prod=", p.prod, " user=", p.user, sep=""))
+}
+
+#############################################################################################
 
 start <- proc.time()
 
@@ -131,7 +130,7 @@ for (habitat in levels(training.data$Main_habit))
   habitat.data <- data.frame(subset(training.data, Main_habit == habitat))
   
   # List of variables
-  variables <- names(training.data)[c(3:17,22:23,30:31)]
+  variables <- names(training.data)[c(3:17,22:23,30:31,37:38)]
   
   # Calculate vegetation indices for groups of variables
   indices <- list(3:12, 13:14, 22:23, 30:31)
@@ -170,7 +169,7 @@ for (habitat in levels(training.data$Main_habit))
   # Fit individual models
   
   print(habitat)
-  M <- glmulti2(paste("Main_habit == '", habitat, "' ~ ", sep=""), training.data, variables, binomial, width=3, maxterms=7)
+  M <- glmulti2(paste("Main_habit == '", habitat, "' ~ ", sep=""), training.data, variables, binomial, width=NA, maxterms=7)
   if (!is.null(M)) 
   {
     M.list <- append(M.list, list(M))
