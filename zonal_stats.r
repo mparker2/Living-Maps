@@ -1,5 +1,17 @@
 #########################################################################################################
 #
+# Function to calculate zonal stats from rasters for a set of polygons
+#
+# segmentation - segmented polygons or raster layer for which zonal statistics are to be calculated
+# list.rasters - a list containing a vector of format:
+#                > list.rasters <- list(layer_name=c(path_to_raster, band), ...)
+# res          - the resolution at which rasters will be resampled to (only required for segmented polygons)
+# clusters     - number of process cores used
+# tiles        - number of columns and rows for tiling data
+#
+# Returns a table containing the zonal statistics for each polygon.  The ID field references the original 
+# segmented object id.  Column names are taken from list.rasters
+#
 # Author:       Richard Alexander, Natural England
 #
 # Change history
@@ -7,30 +19,35 @@
 # 11 October 2016
 #   - Changed resample method from biolinear to ngb (nearest neighbour) to avoid missing values
 #   - region.x and region.y minimum value set to 1 to avoid error
+#
+# 8 November 2016
+#   - Combined segmented polygon and raster functionality into a single function interface 'zonal_stats'
+#   - Resolved duplicate IDs from segmented polygons split across polygons by calculating weighted means based on
+#          number of cells of polygon within each tile
 
 library(foreach)
 library(tools)
 library(doSNOW)
 library(rgdal)
 library(raster)
+library(plyr)
 
-#########################################################################################################
-#
-# Function to calculate zonal stats from rasters for a set of polygons
-#
-# segmentation - polygons for which zonal statistics are to be calculated
-# list.rasters - a list containing a vector of format:
-#                > list.rasters <- list(layer_name=c(path_to_raster, band), ...)
-# res          - the resolution at which rasters will be resampled to
-# clusters     - number of process cores used
-# tiles        - number of columns and rows for tiling data
-#
-# Returns a table containing the zonal statistics for each polygon.  The ID field references the original polygon.
-# Column names are taken from list.rasters
-#
-
-zonal_stats <- function(segmentation, list.rasters, res, clusters=8, tiles=15)
-{    
+zonal_stats <- function(segmentation, list.rasters, res=NA, clusters=8, tiles=15)
+{   
+  # If segmentation is a raster layer then call separate function
+  if (class(segmentation)[1] == "RasterLayer")
+  {
+     return(zonal_stats_raster(segmentation, list.rasters, clusters, tiles))
+  } else if (class(segmentation)[1] != "SpatialPolygons")
+  {
+     stop("Segmented polygons must be a polygon layer (opened using 'readOGR') or raster layer (opened using 'raster')")
+  }
+  
+  if (is.na(res))
+  {
+     stop("Please specify the resolution for rasterizing the segmented polygons")
+  }
+  
   # Initiate parallel processing        
   cluster<-makeCluster(clusters, type = "SOCK") 
   registerDoSNOW(cluster)
@@ -108,66 +125,7 @@ seg.raster.tiles <- c(seg.raster.tiles, seg.raster.tiles.cluster)
 }
 
 # Now extract the zonal statistics for the rasterised segmented polygons
-zonal_stats_seg <- NULL
-for(i in 1:length(seg.raster.tiles))
-{
-  seg.raster.tile <- seg.raster.tiles[[i]]
-  
-  if (!is.null(seg.raster.tile))
-  {     
-    print(paste("Zonal stats:", i, "of", length(seg.raster.tiles)))
-    
-    st <- system.time({         
-      
-      fn.merge <- function(x,y){merge(x,y,by="ID", all=T)}
-      zonal_stats_seg.part <- foreach (j=1:length(list.rasters), .combine=fn.merge, .packages=c("raster","rgdal"), .noexport=c("segmentation","segmentation.tiles")) %dopar%
-      {        
-          file <- list.rasters[[j]][1]
-          band <- list.rasters[[j]][2]  
-                                                        
-          # Only read in required subset of raster
-          info <- GDALinfo(file)
-          ext <- extent(seg.raster.tile)
-          ext <- intersect(ext, extent(info[4], info[4]+info[2]*info[6], info[5], info[5]+info[1]*info[7]))  
-          
-          stats <- NULL
-          if (!is.null(ext))
-          {
-             offset.x <- (ext[1] - info[4]) %/% info[6]
-             offset.y <- (info[5]+info[1]*info[7]-ext[4]) %/% info[7]  # Assumes ysign=-1
-             region.x <- max((ext[2]-ext[1]) %/% info[6],1)
-             region.y <- max((ext[4]-ext[3]) %/% info[7],1)
-             
-             # Use readGDAL rather than raster function as latter corrupts some files
-             r <- as(readGDAL(file, band=band, offset=c(offset.y, offset.x), region.dim=c(region.y, region.x)), "RasterLayer")
-             
-             if (!is.null(intersect(extent(r), extent(seg.raster.tile))))
-             {                        
-               #r <- crop(r, extent(seg.raster.tile)) # Cropping improves performance !! Causing error            
-               r <- resample(r, seg.raster.tile, method="ngb") # Resample to match the rasterised segmented polygons
-               values <- zonal(r, seg.raster.tile)                                    
-               stats <- data.frame(values)
-               names(stats) <- c("ID",names(list.rasters)[j])                                      
-             }
-          }
-          
-          if (is.null(stats))
-          {
-            seg.ids <- unique(seg.raster.tile)
-            stats <- data.frame("ID"=seg.ids, rep(NA, length(seg.ids)))
-            names(stats) <- c("ID",names(list.rasters)[j])      
-          }    
-          stats
-      }
-
-    }) # End system.time
-print(paste("Polygons processed:", nrow(zonal_stats_seg.part), "in", round(st[[3]],1),"seconds"))
-
-# Merge results              
-zonal_stats_seg <- rbind(zonal_stats_seg, zonal_stats_seg.part) # Append to existing zonal stats
-  }
-
-}
+zonal_stats_seg <- zonal_stats_raster.tiles(seg.raster.tiles, list.rasters, clusters)
 
 stopCluster(cluster)
 
@@ -177,16 +135,8 @@ return(zonal_stats_seg)
 
 ##################################################################################################################
 #
-# Function to calculate zonal stats from rasters for a segmented raster
+# Calculate zonal statistics for raster layer containing segmented polygons
 #
-# segmentation - raster layer containing segmented areas for which zonal statistics are to be calculated
-# list.rasters - a list containing a vector of format:
-#                > list.rasters <- list(layer_name=c(path_to_raster, band), ...)
-# clusters     - number of process cores used
-# tiles        - number of columns and rows for tiling data
-#
-# Returns a table containing the zonal statistics for each polygon.  The ID field references the original raster values
-# Column names are taken from list.rasters
 
 zonal_stats_raster <- function(segmentation, list.rasters, clusters=8, tiles=15)
 {
@@ -198,7 +148,7 @@ zonal_stats_raster <- function(segmentation, list.rasters, clusters=8, tiles=15)
   # Add ID,x and y fields to the segmentation object with the centroid of each polygon
   seg.ext <- extent(segmentation)  
   
-  zonal_stats_seg <- NULL
+  seg.raster.tiles <- NULL
   segmentation.tiles <- for(tile in 0:(tiles*tiles-1))
   {
     
@@ -213,9 +163,35 @@ zonal_stats_raster <- function(segmentation, list.rasters, clusters=8, tiles=15)
     
     seg.raster.tile <- crop(segmentation, extent.tile)
     
-    if(!all(is.na(values(seg.raster.tile))))
+    # Append cropped tile to list of tiles
+    seg.raster.tiles <- c(seg.raster.tiles, seg.raster.tile) 
+  }
+  
+  # Extract zonal stats from tiles
+  zonal_stats_seg <- zonal_stats_raster.tiles(seg.raster.tiles, list.rasters, clusters)
+
+  stopCluster(cluster)
+  
+  return(zonal_stats_seg)  
+}
+
+
+##################################################################################################################
+#
+# Internal function to extract zonal statistics from tiled rasters
+#
+
+zonal_stats_raster.tiles <- function(seg.raster.tiles, list.rasters, clusters)
+{
+  zonal_stats_seg <- NULL
+  
+  for (tile in 1:length(seg.raster.tiles))
+  {
+    seg.raster.tile <- seg.raster.tiles[[tile]]
+    
+    if(!is.null(seg.raster.tile) && !all(is.na(values(seg.raster.tile))))
     {
-      print(paste("Zonal stats:", tile, "of", tiles*tiles-1))
+      print(paste("Zonal stats:", tile, "of", length(seg.raster.tiles)))
       
       fn.merge <- function(x,y){merge(x,y,by="ID", all=T)}
       zonal_stats_seg.part <- foreach(j=1:length(list.rasters), .combine=fn.merge, .packages=c("raster","rgdal")) %dopar%
@@ -254,17 +230,38 @@ zonal_stats_raster <- function(segmentation, list.rasters, clusters=8, tiles=15)
           stats <- data.frame("ID"=seg.ids, rep(NA, length(seg.ids)))
           names(stats) <- c("ID",names(list.rasters)[j])      
         }    
+        
+        #Return the stats object from the foreach loop
         stats
       }
-  
+      
+      # Append the frequency of cells to the table
+      dt <- data.frame(ID=values(seg.raster.tile))
+      dt <- count(dt, "ID")
+      zonal_stats_seg.part <- merge(zonal_stats_seg.part, dt, by="ID")
+      
       # Merge results              
       zonal_stats_seg <- rbind(zonal_stats_seg, zonal_stats_seg.part) # Append to existing zonal stats
     }
-      
   }
-
-  stopCluster(cluster)
   
-  return(zonal_stats_seg)  
+  # Merge duplicate rows
+  zonal_stats_seg.unique <- NULL
+  for (var in names(zonal_stats_seg)[2:(ncol(zonal_stats_seg)-1)])
+  {
+     # Calculate weighted mean for segmented polygons split across tiles
+      aggr.expr <- paste("sum(",var,"*freq)/sum(freq)", sep="")
+      zonal_stats.var <- ddply(zonal_stats_seg, c("ID"), summarize, eval(parse(text=aggr.expr)))    
+      names(zonal_stats.var)[2] <- var
+      
+      if (is.null(zonal_stats_seg.unique))
+      {
+         zonal_stats_seg.unique <- zonal_stats.var   
+      } else
+      {
+        zonal_stats_seg.unique <- data.frame(zonal_stats_seg.unique, zonal_stats.var[2])
+      }
+  }
+  
+  return(zonal_stats_seg.unique)  
 }
-
