@@ -24,13 +24,18 @@
 #   - Combined segmented polygon and raster functionality into a single function interface 'zonal_stats'
 #   - Resolved duplicate IDs from segmented polygons split across polygons by calculating weighted means based on
 #          number of cells of polygon within each tile
+#
+# 19 December 2016
+#   - Resolved error that occurs whilst calculating values for polygons split across tiles
+#
 
 library(foreach)
-library(tools)
+#library(tools)
 library(doSNOW)
 library(rgdal)
 library(raster)
 library(plyr)
+library(sqldf)
 
 zonal_stats <- function(segmentation, list.rasters, res=NA, clusters=8, tiles=15)
 {   
@@ -38,10 +43,11 @@ zonal_stats <- function(segmentation, list.rasters, res=NA, clusters=8, tiles=15
   if (class(segmentation)[1] == "RasterLayer")
   {
      return(zonal_stats_raster(segmentation, list.rasters, clusters, tiles))
-  } else if (class(segmentation)[1] != "SpatialPolygons")
-  {
-     stop("Segmented polygons must be a polygon layer (opened using 'readOGR') or raster layer (opened using 'raster')")
   }
+  #else if (class(segmentation)[1] != "SpatialPolygons")
+  #{
+  #   stop("Segmented polygons must be a polygon layer (opened using 'readOGR') or raster layer (opened using 'raster')")
+  #}
   
   if (is.na(res))
   {
@@ -195,6 +201,7 @@ zonal_stats_raster.tiles <- function(seg.raster.tiles, list.rasters, clusters)
       
       fn.merge <- function(x,y){merge(x,y,by="ID", all=T)}
       zonal_stats_seg.part <- foreach(j=1:length(list.rasters), .combine=fn.merge, .packages=c("raster","rgdal")) %dopar%
+      #zonal_stats_seg.part <- foreach(j=1:length(list.rasters), .combine=fn.merge, .packages=c("raster","rgdal")) %do%
       {        
         file <- list.rasters[[j]][1]
         band <- list.rasters[[j]][2]  
@@ -250,9 +257,7 @@ zonal_stats_raster.tiles <- function(seg.raster.tiles, list.rasters, clusters)
   for (var in names(zonal_stats_seg)[2:(ncol(zonal_stats_seg)-1)])
   {
      # Calculate weighted mean for segmented polygons split across tiles
-      aggr.expr <- paste("sum(",var,"*freq)/sum(freq)", sep="")
-      zonal_stats.var <- ddply(zonal_stats_seg, c("ID"), summarize, eval(parse(text=aggr.expr)))    
-      names(zonal_stats.var)[2] <- var
+      zonal_stats.var <- sqldf(paste("select ID, sum(`",var,"` * freq)/sum(freq) as `", var, "` from zonal_stats_seg group by ID", sep=""))
       
       if (is.null(zonal_stats_seg.unique))
       {
