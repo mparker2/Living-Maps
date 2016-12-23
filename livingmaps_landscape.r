@@ -16,7 +16,7 @@ training.data.habitat.shp <- readOGR("Training_Data/Living_Maps_FEP_Data_Landsca
 training.data.os.shp <- readOGR ("OS/NDevonDart_OS_trainingpoints/OS_VectorMapTraining.shp", "OS_VectorMapTraining")
 
 start <- proc.time()
-segmentation.shp <- readOGR("Segmentation/Living_Maps_Segmentation_Dartmoor.shp", "Living_Maps_Segmentation_Dartmoor")
+segmentation.shp <- readOGR("Segmentation/Living_Maps_Segmentation_Dartmoor.shp", "Living_Maps_Segmentation_Dartmoor", useC=T)
 proc.time()-start
 
 #############################################################################################
@@ -32,7 +32,6 @@ sar_summer <- "S1/S1_NDevonDart/dartmoor_2016_07_06_bng.tif"
 sar_winter <- "S1/S1_NDevonDart/dartmoor_2016_01_08_bng.tif"
 LSU_summer <- "LSU/Outputs/NDevonDart_S2_20160719_37_5_unmixed.tif"
 LSU_winter <- "LSU/Outputs/NDevonDart_S2_20161106_37_5_unmixed.tif" 
-
 
 
 list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
@@ -74,12 +73,15 @@ list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
 
 # Training data (Zonal Stats)
 
-names(training.data.os.shp)[2:3] <- c("Feature_De", "Feature_Ty")
-training.data.shp <- rbind(training.data.habitat.shp[5:6], training.data.os.shp[2:3])
 
-zonal_stats_training_data <-zonal_stats(buffer(training.data.shp,1,dissolve=F), list.rasters, 10, clusters=8, tiles=15)
+# Append the OS training points to the habitat training points
+names(training.data.os.shp)[2:3] <- c("Feature_De", "Feature_Ty")
+training.data.os.shp$Tier <- 1
+training.data.shp <- rbind(training.data.habitat.shp[c(5:6,10)], training.data.os.shp[2:4])
+
+zonal_stats_training_data <-zonal_stats(buffer(training.data.shp,10,dissolve=F), list.rasters, 10, clusters=8, tiles=15)
   
-training.data <- training.data.shp[1:2]
+training.data <- training.data.shp[1:3]
 training.data$ID <- 1:nrow(training.data)
 training.data <- merge(training.data, zonal_stats_training_data, by="ID")
 
@@ -150,6 +152,7 @@ classify <- function(training.data, classes, classcol.name)
   for (habitat in classes)
   {
     print(habitat)
+    habitat <<- habitat # Copy habitat as a global variable so visible to calcerrors function
     
     # Add normalised versions of variables
     variables1 <- variables
@@ -159,8 +162,6 @@ classify <- function(training.data, classes, classcol.name)
     
     for (var in variables) 
     {
-      print(var)
-      
       m <- round(mean(eval(parse(text=var), habitat.data), na.rm=T),5)
       s <- round(sd(eval(parse(text=var), habitat.data), na.rm=T),5)
       
@@ -189,6 +190,11 @@ classify <- function(training.data, classes, classcol.name)
 # Classify training data
 
 training.data <- read.table("training_data/training_data.txt", sep="\t", header=T)
+
+# Select the training data for points with accurate spatial mapping (Tier=1) and for mappable habitat classes
+training.data <- subset(training.data, Tier==1)
+training.data <- training.data[grepl("BAP|^G0|^M|^T0[4-8]|^T10|^V0[2-5]|Building|Road|Surface water", training.data$Feature_De),]
+
 
 M.list <- classify(training.data, levels(training.data$Feature_De), "Feature_De")
 

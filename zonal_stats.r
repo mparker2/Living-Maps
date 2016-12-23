@@ -26,11 +26,15 @@
 #          number of cells of polygon within each tile
 #
 # 19 December 2016
-#   - Resolved error that occurs whilst calculating values for polygons split across tiles
+#   - Resolved error that occurs whilst calculating values for polygons split across tiles, now using sqldf rather than ddply
+#     as latter does not support variables as strings
+#
+# 23 December 2016
+#   - Added test that raster list is valid prior to processing
+#   - Test for correct inputs now accepts SpatialPolygonDataFrame
 #
 
 library(foreach)
-#library(tools)
 library(doSNOW)
 library(rgdal)
 library(raster)
@@ -44,14 +48,20 @@ zonal_stats <- function(segmentation, list.rasters, res=NA, clusters=8, tiles=15
   {
      return(zonal_stats_raster(segmentation, list.rasters, clusters, tiles))
   }
-  #else if (class(segmentation)[1] != "SpatialPolygons")
-  #{
-  #   stop("Segmented polygons must be a polygon layer (opened using 'readOGR') or raster layer (opened using 'raster')")
-  #}
+  else if (class(segmentation)[1] != "SpatialPolygons" && class(segmentation)[1] != "SpatialPolygonsDataFrame")
+  {
+     stop("Segmented polygons must be a polygon layer (opened using 'readOGR') or raster layer (opened using 'raster')")
+  }
   
   if (is.na(res))
   {
      stop("Please specify the resolution for rasterizing the segmented polygons")
+  }
+   
+  # Check that list of rasters is valid prior to processing
+  for (r in list.rasters)
+  {
+     raster(r[[1]], r[[2]])
   }
   
   # Initiate parallel processing        
@@ -215,7 +225,7 @@ zonal_stats_raster.tiles <- function(seg.raster.tiles, list.rasters, clusters)
         if (!is.null(ext))
         {
           offset.x <- (ext[1] - info[4]) %/% info[6]
-          offset.y <- (info[5]+info[1]*info[7]-ext[4]) %/% info[7]  # Assumes ysign=-1
+          offset.y <- (info[5]+info[1]*info[7]-ext[4]) %/% info[7]   # Assumes ysign=-1
           region.x <- max((ext[2]-ext[1]) %/% info[6],1)
           region.y <- max((ext[4]-ext[3]) %/% info[7],1)
           
@@ -226,8 +236,9 @@ zonal_stats_raster.tiles <- function(seg.raster.tiles, list.rasters, clusters)
           {                        
             r <- resample(r, seg.raster.tile, method="ngb") # Resample to match the rasterised segmented polygons
             values <- zonal(r, seg.raster.tile)                                    
+             
             stats <- data.frame(values)
-            names(stats) <- c("ID",names(list.rasters)[j])                                      
+            names(stats) <- c("ID",names(list.rasters)[j])      
           }
         }
         
