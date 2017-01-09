@@ -11,6 +11,7 @@ setwd("C:/Users/Bertie/Documents/LivingMaps")
 
 source("Living-Maps.git/trunk/glmulti2.r")
 source("Living-Maps.git/trunk/zonal_stats.r")
+source("Living-Maps.git/trunk/user_producer_accuracy.r")
 
 training.data.habitat.shp <- readOGR("Training_Data/Living_Maps_FEP_Data_Landscape_Training_Points.shp", "Living_Maps_FEP_Data_Landscape_Training_Points")
 training.data.os.shp <- readOGR ("OS/NDevonDart_OS_trainingpoints/OS_VectorMapTrainingUpdate.shp", "OS_VectorMapTrainingUpdate")
@@ -112,32 +113,30 @@ write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg.txt", sep="\t")
 # Callback function to display user/producer errors for individual habitats during classification
 #
 
-calcerrors <- function (M, data)
-{
-  # Calculate user and producer errors
-  p <- predict(M, data, type="response")
-  p.prod <- round(sum(p >= 0.5 & data[2] == habitat, na.rm=T) / sum(data[2] == habitat, na.rm=T)*100,1)
-  p.user <- round((sum(p >= 0.5 & data[2] == habitat, na.rm=T) + sum(p < 0.5 & data[2] != habitat, na.rm=T)) / nrow(data)*100,1)
-  
-  return(paste(" prod=", p.prod, " user=", p.user, sep=""))
-}
-
+#calcerrors <- function (M, data)
+#{
+# Calculate user and producer errors
+#  p <- predict(M, data, type="response")
+#  p.prod <- round(sum(p >= 0.5 & data[2] == habitat, na.rm=T) / sum(data[2] == habitat, na.rm=T)*100,1)
+#  p.user <- round((sum(p >= 0.5 & data[2] == habitat, na.rm=T) + sum(p < 0.5 & data[2] != habitat, na.rm=T)) / nrow(data)*100,1)
+#  
+#  return(paste(" prod=", p.prod, " user=", p.user, sep=""))
+#}
 
 #############################################################################################
 # 
 # Function to build models for each habitat class using training data
 #
 
-classify <- function(training.data, classes, classcol.name)
+classify <- function(training.data, classes, classcol.name, variables, indices=NULL)
 {
   
   # Create a list of variables (10 changed to 14...)
-  variables <- names(training.data)[c(5:14, 35:37)]
-  #variables <- names(training.data)[c(25:28, 35:37)]
+  #variables <- names(training.data)[c(5:14, 25:26, 35:37)]
   
   # Calculate vegetation indices for groups of variables (ie S2 summer, S2 winter)
   #indices <- list(5:14, 15:24)
-  indices <- list(5:14)
+  #indices <- list(5:14)
   
   for (range in indices)
   {
@@ -148,9 +147,8 @@ classify <- function(training.data, classes, classcol.name)
         a <- names(training.data)[i]
         b <- names(training.data)[j]
         
-        #variables <- c(variables, paste("(",a,"-",b,")/(",a, "+", b, ")"))  # Normalised
-        #variables <- c(variables, paste(a, "/", b))  # Ratio
-        #variables <- c(variables, paste(a, "-", b))  # Difference
+        variables <- c(variables, paste("(",a,"-",b,")/(",a, "+", b, ")"))  # Normalised
+        variables <- c(variables, paste(a, "/", b))  # Ratio
       }
     }
   }
@@ -180,11 +178,11 @@ classify <- function(training.data, classes, classcol.name)
       if (!is.na(m) && !is.na(s))
       {
         f <- paste("eval(dnorm(",var,",", m, ", ", s,"))", sep="")
-        variables1 <- c(variables1, f)
+        #variables1 <- c(variables1, f)
       } 
     }
     
-    M <-glmulti2(paste(classcol.name, "=='", habitat,"' ~",sep=""), training.data, variables1, "binomial", maxterms=5, width=3)
+    M <-glmulti2(paste(classcol.name, "=='", habitat,"' ~",sep=""), training.data, variables1, "binomial", maxterms=NA, width=3)
     if (!is.null(M))
     {   
         M.list <- append(M.list, list(list(model=M, class=habitat)))
@@ -200,16 +198,33 @@ classify <- function(training.data, classes, classcol.name)
 #
 
 ## Read in the training data txt
-training.data <- read.table("training_data/training_data.txt", sep="\t", header=T)
+training.data.all <- read.table("training_data/training_data.txt", sep="\t", header=T)
 
 # Select the training data for points with accurate spatial mapping (Tier=1) and for mappable habitat classes
-training.data <- subset(training.data, Tier==1)
+training.data.all <- subset(training.data, Tier<=2)
+
+# Split into stratified training and test datasets
+training.data <- NULL
+training.data.test <- NULL
+for(c in unique(training.data.all$Feature_Ty))
+{
+   training.data.sub <- subset(training.data.all, Feature_Ty==c)
+   subset <- random.subset(training.data.sub, 0.8)
+   training.data <- rbind(training.data, training.data.sub[subset,])
+   training.data.test <- rbind(training.data.test, training.data.sub[-subset,])
+}
 
 ## Select the classes you want to map from the Feature_De column of the training.data
 training.data <- training.data[grepl("BAP|^G0|^M|^T0[4-8]|^T10|^V0[2-5]|Building|Sea|Surface water|Mud, sand or shingle", training.data$Feature_De),]
 
+# Specify the variables and indices to be included in the model
+
+#variables <- names(training.data)[c(5:14, 35:37)]
+variables <- names(training.data)[c(5:14, 29:31, 35:37)]
+#indices <- list(5:14, 15:24)
+
 # Classify broad habitats using the Feature_Ty column of the training data
-M.broad <- classify(training.data, unique(training.data$Feature_Ty), "Feature_Ty")
+M.broad <- classify(training.data, unique(training.data$Feature_Ty), "Feature_Ty", variables, indices)
 
 # Classify sub-habitat for each broad habitat class
 M.detailed <- NULL
@@ -220,7 +235,7 @@ for (l in M.broad)
    
    if (length(unique(training.data.sub$Feature_De)) > 1)
    {
-      M.list <- classify(training.data.sub, unique(training.data.sub$Feature_De), "Feature_De")
+      M.list <- classify(training.data.sub, unique(training.data.sub$Feature_De), "Feature_De", variables, indices)
       M.detailed <- append(M.detailed, list(list(broad=l$class, submodels=M.list)))
    } 
    # If only one sub-class then no need to model
@@ -238,68 +253,75 @@ for (l in M.broad)
 
 # Running the model for each of our classes
 
+predict.classes <- function(zonal_stats_seg)
+{
+   results<-data.frame(ID=zonal_stats_seg$ID)
+   
+   # Predict broad habitats
+   names.broad <- NULL
+   for (m in M.broad)
+   {
+      print (m$class)
+      p <-predict(m$model,zonal_stats_seg,type="response")
+      
+      results<-cbind(results,p)
+      
+      names(results)[length(names(results))]<-m$class
+      names.broad <- c(names.broad, m$class)
+   }
+   
+   # Now create a table with the broad habitat predicted for each segmented polygon
+   results.broad <- data.frame(ID=zonal_stats_seg$ID, broad=names.broad[max.col(results[2:ncol(results)])], prob.broad=apply(results[2:ncol(results)],1, max))
+   
+   # Now sub-classify detailed habitats
+   results.all <- NULL
+   for (m in M.detailed)
+   {
+      # For each broad habitat extract the zonal stats for these segmented polygons
+       print (m$broad)
+       zonal_stats_seg.broad <- merge(zonal_stats_seg, subset(results.broad, broad==m$broad), by="ID")
+       
+       if (nrow(zonal_stats_seg.broad) > 0 && !is.null(m$submodels))
+       {
+         # Now run the model for each sub-class to calculate its probability
+          results <- data.frame(ID=zonal_stats_seg.broad$ID)
+          names.detailed <- NULL
+          
+          for (m.sub in m$submodels)
+          {
+             print(m.sub$class)
+             if(class(m.sub$model)[1] == "function")
+             {
+                p <- m.sub$model(zonal_stats_seg.broad)
+             } else
+             {
+                p <- predict(m.sub$model, zonal_stats_seg.broad, type="response")
+             }
+             results <- cbind(results, p)   
+             names(results)[length(names(results))]<-m.sub$class
+             names.detailed <- c(names.detailed, m.sub$class)
+          }
+          
+          # Now create a table with the broad habitat predicted for each segmented polygon
+          results.detailed <- data.frame(ID=zonal_stats_seg.broad$ID, detailed=names.detailed[max.col(results[2:ncol(results)])], prob.detailed=apply(results[2:ncol(results)],1, max))
+          
+          # Merge the results into results.broad
+          results.detailed <- merge(results.broad, results.detailed, by="ID")
+          
+          results.all <- rbind(results.all, results.detailed)
+       }
+   }
+   return(results.all)
+}
+
+#############################################################################################
+
 if (!exists("zonal_stats_seg"))
 {
    zonal_stats_seg <- read.table("zonal_stats/zonal_stats_seg.txt", sep="\t", header=T)
 }
 
-results<-data.frame(ID=zonal_stats_seg$ID)
-
-# Predict broad habitats
-names.broad <- NULL
-for (m in M.broad)
-{
-   print (m$class)
-   p <-predict(m$model,zonal_stats_seg,type="response")
-   
-   results<-cbind(results,p)
-   
-   names(results)[length(names(results))]<-m$class
-   names.broad <- c(names.broad, m$class)
-}
-
-# Now create a table with the broad habitat predicted for each segmented polygon
-results.broad <- data.frame(ID=zonal_stats_seg$ID, broad=names.broad[max.col(results[2:ncol(results)])], prob.broad=apply(results[2:ncol(results)],1, max))
-
-# Now sub-classify detailed habitats
-results.all <- NULL
-for (m in M.detailed)
-{
-   # For each broad habitat extract the zonal stats for these segmented polygons
-    print (m$broad)
-    zonal_stats_seg.broad <- merge(zonal_stats_seg, subset(results.broad, broad==m$broad), by="ID")
-    
-    if (nrow(zonal_stats_seg.broad) > 0 && !is.null(m$submodels))
-    {
-      # Now run the model for each sub-class to calculate its probability
-       results <- data.frame(ID=zonal_stats_seg.broad$ID)
-       names.detailed <- NULL
-       
-       for (m.sub in m$submodels)
-       {
-          print(m.sub$class)
-          if(class(m.sub$model)[1] == "function")
-          {
-             p <- m.sub$model(zonal_stats_seg.broad)
-          } else
-          {
-             p <- predict(m.sub$model, zonal_stats_seg.broad, type="response")
-          }
-          results <- cbind(results, p)   
-          names(results)[length(names(results))]<-m.sub$class
-          names.detailed <- c(names.detailed, m.sub$class)
-       }
-       
-       # Now create a table with the broad habitat predicted for each segmented polygon
-       results.detailed <- data.frame(ID=zonal_stats_seg.broad$ID, detailed=names.detailed[max.col(results[2:ncol(results)])], prob.detailed=apply(results[2:ncol(results)],1, max))
-       
-       # Merge the results into results.broad
-       results.detailed <- merge(results.broad, results.detailed, by="ID")
-       
-       results.all <- rbind(results.all, results.detailed)
-    }
-}
-
+results.all <- predict.classes(zonal_stats_seg)
 
 
 #############################################################################################
@@ -311,3 +333,16 @@ segmentation.p <- merge(segmentation.shp, results.all, by="ID")
 writeOGR(segmentation.p, "Outputs/Living_Maps_Dartmoor_Detailed.shp", "Living_Maps_Dartmoor_Detailed", driver="ESRI Shapefile", overwrite=T)
 
 rm(segmentation.p)
+
+#############################################################################################
+#
+# Calculate user/producer accuracies
+#
+
+p <- predict.classes(training.data.test)
+confusion.matrix(training.data.test$Feature_Ty, merge(training.data.test, p, by="ID", all.x=T)$broad)
+
+confusion.matrix(training.data.test$Feature_De, merge(training.data.test, p, by="ID", all.x=T)$detailed)
+
+
+
