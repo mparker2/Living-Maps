@@ -13,7 +13,7 @@ source("C:/Users/Bertie/Documents/LivingMaps/Living-Maps.git/trunk/zonal_stats.r
 setwd("C:/Users/Bertie/Documents/LivingMaps")
 
 training.data.habitat.shp <- readOGR("Training_Data/Living_Maps_FEP_Data_Landscape_Training_Points.shp", "Living_Maps_FEP_Data_Landscape_Training_Points")
-training.data.os.shp <- readOGR ("OS/NDevonDart_OS_trainingpoints/OS_VectorMapTraining.shp", "OS_VectorMapTraining")
+training.data.os.shp <- readOGR ("OS/NDevonDart_OS_trainingpoints/OS_VectorMapTrainingUpdate.shp", "OS_VectorMapTrainingUpdate")
 
 start <- proc.time()
 segmentation.shp <- readOGR("Segmentation/Living_Maps_Segmentation_Dartmoor.shp", "Living_Maps_Segmentation_Dartmoor", useC=T)
@@ -70,26 +70,36 @@ list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
 
 
 #############################################################################################
-
+#
 # Training data (Zonal Stats)
-
+#
 
 # Append the OS training points to the habitat training points
 names(training.data.os.shp)[2:3] <- c("Feature_De", "Feature_Ty")
+
+## Add a column to os.shp called Tier and allocate a value of 1
 training.data.os.shp$Tier <- 1
+
+## Concatenate Feature_De, Feature_Ty and Tier columns from training.data.habitat.shp with the same from the OS data
 training.data.shp <- rbind(training.data.habitat.shp[c(5:6,10)], training.data.os.shp[2:4])
 
 zonal_stats_training_data <-zonal_stats(buffer(training.data.shp,10,dissolve=F), list.rasters, 10, clusters=8, tiles=15)
-  
+
 training.data <- training.data.shp[1:3]
+
+## Add a column to training.data called ID and allocate a value of 1 to the number of rows in training.data
 training.data$ID <- 1:nrow(training.data)
+
+## Merge traing.data and zonal_stats_training_data by the ID column
 training.data <- merge(training.data, zonal_stats_training_data, by="ID")
 
+## Write training_data to text file (training_data.txt)
 write.table(training.data, "training_data/training_data.txt", sep="\t")
 
 #############################################################################################
-
+#
 # Zonal Stats for Segmented Polygons
+#
 
 segmentation.raster <-raster("Segmentation/Living_Maps_Segmentation_Dartmoor.tif")
 
@@ -121,10 +131,10 @@ calcerrors <- function (M, data)
 classify <- function(training.data, classes, classcol.name)
 {
   
-  # Create a list of variables
-  variables <- names(training.data)[c(5:10, 35:37)]
+  # Create a list of variables (10 changed to 14...)
+  variables <- names(training.data)[c(5:14, 35:37)]
   
-  # Calculate vegetation indices for groups of variables
+  # Calculate vegetation indices for groups of variables (ie S2 summer, S2 winter)
   indices <- list(5:14, 15:24)
   
   for (range in indices)
@@ -185,16 +195,20 @@ classify <- function(training.data, classes, classcol.name)
 }
 
 #############################################################################################
-
+#
 # Classify training data
+#
 
+## Read in the training data txt
 training.data <- read.table("training_data/training_data.txt", sep="\t", header=T)
 
 # Select the training data for points with accurate spatial mapping (Tier=1) and for mappable habitat classes
 training.data <- subset(training.data, Tier==1)
-training.data <- training.data[grepl("BAP|^G0|^M|^T0[4-8]|^T10|^V0[2-5]|Building|Road|Surface water", training.data$Feature_De),]
 
-# Classify broad habitats
+## Select the classes you want to map from the Feature_De column of the training.data
+training.data <- training.data[grepl("BAP|^G0|^M|^T0[4-8]|^T10|^V0[2-5]|Building|Sea|Surface water|Mud, sand or shingle", training.data$Feature_De),]
+
+# Classify broad habitats using the Feature_Ty column of the training data
 M.broad <- classify(training.data, unique(training.data$Feature_Ty), "Feature_Ty")
 
 # Classify sub-habitat for each broad habitat class
