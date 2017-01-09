@@ -7,10 +7,10 @@ library(rgdal)
 library(raster)
 library(rgeos)
 
-source("C:/Users/Bertie/Documents/LivingMaps/Living-Maps.git/trunk/glmulti2.r")
-source("C:/Users/Bertie/Documents/LivingMaps/Living-Maps.git/trunk/zonal_stats.r")
-
 setwd("C:/Users/Bertie/Documents/LivingMaps")
+
+source("Living-Maps.git/trunk/glmulti2.r")
+source("Living-Maps.git/trunk/zonal_stats.r")
 
 training.data.habitat.shp <- readOGR("Training_Data/Living_Maps_FEP_Data_Landscape_Training_Points.shp", "Living_Maps_FEP_Data_Landscape_Training_Points")
 training.data.os.shp <- readOGR ("OS/NDevonDart_OS_trainingpoints/OS_VectorMapTrainingUpdate.shp", "OS_VectorMapTrainingUpdate")
@@ -116,7 +116,7 @@ calcerrors <- function (M, data)
 {
   # Calculate user and producer errors
   p <- predict(M, data, type="response")
-  p.prod <- round(sum(p >= 0.5 & data[2] == habitat, na.rm=T) / sum(data[2] == habitat)*100,1)
+  p.prod <- round(sum(p >= 0.5 & data[2] == habitat, na.rm=T) / sum(data[2] == habitat, na.rm=T)*100,1)
   p.user <- round((sum(p >= 0.5 & data[2] == habitat, na.rm=T) + sum(p < 0.5 & data[2] != habitat, na.rm=T)) / nrow(data)*100,1)
   
   return(paste(" prod=", p.prod, " user=", p.user, sep=""))
@@ -133,9 +133,11 @@ classify <- function(training.data, classes, classcol.name)
   
   # Create a list of variables (10 changed to 14...)
   variables <- names(training.data)[c(5:14, 35:37)]
+  #variables <- names(training.data)[c(25:28, 35:37)]
   
   # Calculate vegetation indices for groups of variables (ie S2 summer, S2 winter)
-  indices <- list(5:14, 15:24)
+  #indices <- list(5:14, 15:24)
+  indices <- list(5:14)
   
   for (range in indices)
   {
@@ -157,7 +159,6 @@ classify <- function(training.data, classes, classcol.name)
   # Now fit binonial regression models to each habitat using the list of variables
   
   M.list <- NULL
-  #habitats <<- NULL
   
   for (habitat in classes)
   {
@@ -187,7 +188,6 @@ classify <- function(training.data, classes, classcol.name)
     if (!is.null(M))
     {   
         M.list <- append(M.list, list(list(model=M, class=habitat)))
-        #habitats <<- c(habitats, habitat)
     }
   }
   
@@ -217,13 +217,21 @@ for (l in M.broad)
 {
    print(l$class)
    training.data.sub <- subset(training.data, Feature_Ty == l$class)
-   M.list <- classify(training.data.sub, unique(training.data.sub$Feature_De), "Feature_De")
    
-   M.detailed <- append(M.detailed, list(list(broad=l$class, submodels=M.list)))
+   if (length(unique(training.data.sub$Feature_De)) > 1)
+   {
+      M.list <- classify(training.data.sub, unique(training.data.sub$Feature_De), "Feature_De")
+      M.detailed <- append(M.detailed, list(list(broad=l$class, submodels=M.list)))
+   } 
+   # If only one sub-class then no need to model
+   else
+   {
+      for (subclass in unique(training.data.sub$Feature_De))
+      {
+         M.detailed <- append(M.detailed, list(list(broad=l$class, submodels=list(list(model=function(data){1}, class=subclass)))))
+      }
+   }
 }
-
-#M.list <- NULL
-#M.list <- classify(training.data, levels(training.data$Feature_De), "Feature_De")
 
 
 #############################################################################################
@@ -270,11 +278,18 @@ for (m in M.detailed)
        for (m.sub in m$submodels)
        {
           print(m.sub$class)
-          p <- predict(m.sub$model, zonal_stats_seg.broad, type="response")
+          if(class(m.sub$model)[1] == "function")
+          {
+             p <- m.sub$model(zonal_stats_seg.broad)
+          } else
+          {
+             p <- predict(m.sub$model, zonal_stats_seg.broad, type="response")
+          }
           results <- cbind(results, p)   
           names(results)[length(names(results))]<-m.sub$class
           names.detailed <- c(names.detailed, m.sub$class)
        }
+       
        # Now create a table with the broad habitat predicted for each segmented polygon
        results.detailed <- data.frame(ID=zonal_stats_seg.broad$ID, detailed=names.detailed[max.col(results[2:ncol(results)])], prob.detailed=apply(results[2:ncol(results)],1, max))
        
