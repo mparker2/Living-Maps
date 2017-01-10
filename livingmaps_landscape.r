@@ -147,12 +147,11 @@ classify <- function(training.data, classes, classcol.name, variables, indices=N
         a <- names(training.data)[i]
         b <- names(training.data)[j]
         
-        variables <- c(variables, paste("(",a,"-",b,")/(",a, "+", b, ")"))  # Normalised
-        variables <- c(variables, paste(a, "/", b))  # Ratio
+        #variables <- c(variables, paste("(",a,"-",b,")/(",a, "+", b, ")"))  # Normalised
+        #variables <- c(variables, paste(a, "/", b))  # Ratio
       }
     }
   }
-  
   
   # Now fit binonial regression models to each habitat using the list of variables
   
@@ -169,19 +168,19 @@ classify <- function(training.data, classes, classcol.name, variables, indices=N
       # Select a subset of the training points for the current habitat
     habitat.data <- data.frame(subset(training.data, eval(parse(text=classcol.name)) == habitat))
     
-    for (var in variables) 
-    {
-      m <- round(mean(eval(parse(text=var), habitat.data), na.rm=T),5)
-      s <- round(sd(eval(parse(text=var), habitat.data), na.rm=T),5)
-      
-      # Add the transformed variable to the list of candidate explanatory variables
-      if (!is.na(m) && !is.na(s))
-      {
-        f <- paste("eval(dnorm(",var,",", m, ", ", s,"))", sep="")
-        #variables1 <- c(variables1, f)
-      } 
-    }
-    
+    # for (var in variables) 
+    # {
+    #   m <- round(mean(eval(parse(text=var), habitat.data), na.rm=T),5)
+    #   s <- round(sd(eval(parse(text=var), habitat.data), na.rm=T),5)
+    #   
+    #   # Add the transformed variable to the list of candidate explanatory variables
+    #   if (!is.na(m) && !is.na(s))
+    #   {
+    #     f <- paste("eval(dnorm(",var,",", m, ", ", s,"))", sep="")
+    #     variables1 <- c(variables1, f)
+    #   } 
+    # }
+    # 
     M <-glmulti2(paste(classcol.name, "=='", habitat,"' ~",sep=""), training.data, variables1, "binomial", maxterms=NA, width=3)
     if (!is.null(M))
     {   
@@ -201,7 +200,7 @@ classify <- function(training.data, classes, classcol.name, variables, indices=N
 training.data.all <- read.table("training_data/training_data.txt", sep="\t", header=T)
 
 # Select the training data for points with accurate spatial mapping (Tier=1) and for mappable habitat classes
-training.data.all <- subset(training.data, Tier<=2)
+training.data.all <- subset(training.data.all, Tier<=2)
 
 # Split into stratified training and test datasets
 training.data <- NULL
@@ -218,10 +217,8 @@ for(c in unique(training.data.all$Feature_Ty))
 training.data <- training.data[grepl("BAP|^G0|^M|^T0[4-8]|^T10|^V0[2-5]|Building|Sea|Surface water|Mud, sand or shingle", training.data$Feature_De),]
 
 # Specify the variables and indices to be included in the model
-
-#variables <- names(training.data)[c(5:14, 35:37)]
-variables <- names(training.data)[c(5:14, 29:31, 35:37)]
-#indices <- list(5:14, 15:24)
+variables <- names(training.data)[c(5:14, 25:26, 35:37)]
+indices <- list(5:14)
 
 # Classify broad habitats using the Feature_Ty column of the training data
 M.broad <- classify(training.data, unique(training.data$Feature_Ty), "Feature_Ty", variables, indices)

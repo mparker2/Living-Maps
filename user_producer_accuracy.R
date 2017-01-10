@@ -23,6 +23,7 @@ user.producer.accuracy <- function(i, confusion.table, f=rowSums) {
 confusion.matrix <- function(user, producer) {
   user <- as.factor(user)
   producer <- as.factor(producer)
+  user <- as.factor(as.character(user))
   levels(producer) <- levels(user)
   # if user and producer are different lengths, something is wrong!
   stopifnot(length(user) == length(producer))
