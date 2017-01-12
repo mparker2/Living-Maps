@@ -112,9 +112,6 @@ training.data <- merge(data.frame(ID=1:nrow(training.data.shp), training.data.sh
 # Select the required columns
 training.data <- training.data[c(2:5,9:42)]
 
-#!!!! Make sure that catagorical fields are treated as factors NOT numeric
-training.data$vectormap <- as.factor(training.data$vectormap)
-
 training.data.all <- training.data
 
 # Remove rows with mising values
@@ -155,6 +152,9 @@ write.table(training.data.test, "training_data/training_data_test.txt", sep="\t"
 #
 
 training.data <- read.table("training_data/training_data.txt", sep="\t", header=T)
+
+#!!!! Make sure that catagorical fields are treated as factors NOT numeric
+training.data$vectormap <- as.factor(training.data$vectormap)
 
 # Specify the variables and indices to be included in the model
 variables <- names(training.data)[c(5:14, 25:26, 35:38)]
@@ -212,6 +212,9 @@ rm(segmentation.p)
 #
 
 training.data.test <- read.table("training_data/training_data_test.txt", sep="\t", header=T)
+
+#!!!! Make sure that catagorical fields are treated as factors NOT numeric
+training.data.test$vectormap <- as.factor(training.data$vectormap)
 
 p <- predict.classes(M.broad, M.detailed, training.data.test)
 confusion.matrix(training.data.test$Feature_Ty, merge(training.data.test, p, by="ID", all.x=T)$broad)
