@@ -210,11 +210,14 @@ zonal_stats_raster.tiles <- function(seg.raster.tiles, list.rasters, clusters)
       print(paste("Zonal stats:", tile, "of", length(seg.raster.tiles)))
       
       fn.merge <- function(x,y){merge(x,y,by="ID", all=T)}
-      zonal_stats_seg.part <- foreach(j=1:length(list.rasters), .combine=fn.merge, .packages=c("raster","rgdal")) %dopar%
-      #zonal_stats_seg.part <- foreach(j=1:length(list.rasters), .combine=fn.merge, .packages=c("raster","rgdal")) %do%
+      zonal_stats_seg.part <- foreach(j=1:length(list.rasters), .combine=fn.merge, .packages=c("raster","rgdal"), .export="Mode") %dopar%
       {        
         file <- list.rasters[[j]][1]
-        band <- list.rasters[[j]][2]  
+        band <- list.rasters[[j]][2]
+        
+        fun <- "mean"
+        if (length(list.rasters[[j]]) > 2) {fun <- list.rasters[[j]][3]}
+        
         
         # Only read in required subset of raster
         info <- GDALinfo(file)
@@ -235,7 +238,14 @@ zonal_stats_raster.tiles <- function(seg.raster.tiles, list.rasters, clusters)
           if (!is.null(intersect(extent(r), extent(seg.raster.tile))))
           {                        
             r <- resample(r, seg.raster.tile, method="ngb") # Resample to match the rasterised segmented polygons
-            values <- zonal(r, seg.raster.tile)                                    
+            
+            if (fun == "mode")
+            {
+               values <- zonal(r, seg.raster.tile, fun=Mode)                                    
+            } else
+            {
+               values <- zonal(r, seg.raster.tile) # Calculate mean by default                                 
+            }
              
             stats <- data.frame(values)
             names(stats) <- c("ID",names(list.rasters)[j])      
@@ -265,14 +275,28 @@ zonal_stats_raster.tiles <- function(seg.raster.tiles, list.rasters, clusters)
   
   # Merge duplicate rows
   zonal_stats_seg.unique <- NULL
-  for (var in names(zonal_stats_seg)[2:(ncol(zonal_stats_seg)-1)])
+  #for (var in names(zonal_stats_seg)[2:(ncol(zonal_stats_seg)-1)])
+  for (i in 1:length(list.rasters))
   {
+      var <- names(list.rasters)[i]
+      fun <- "mean"
+      if (length(list.rasters[[i]]) > 2) {fun <- "mode"}
+     
      # Calculate weighted mean for segmented polygons split across tiles
-      zonal_stats.var <- sqldf(paste("select ID, sum(`",var,"` * freq)/sum(freq) as `", var, "` from zonal_stats_seg group by ID", sep=""))
+      
+      if (fun == "mode")
+      {
+         #Nb. surprise this works without an inner join
+         zonal_stats.var <- sqldf(paste("select ID, ",var,", max(freq) from (select ID, ",var,", sum(freq) as freq from zonal_stats_seg group by ID, ",var,") group by ID", sep=""))
+      } 
+      else # Mean
+      {
+         zonal_stats.var <- sqldf(paste("select ID, sum(`",var,"` * freq)/sum(freq) as `", var, "` from zonal_stats_seg group by ID", sep=""))
+      }
       
       if (is.null(zonal_stats_seg.unique))
       {
-         zonal_stats_seg.unique <- zonal_stats.var   
+         zonal_stats_seg.unique <- zonal_stats.var[1:2]   
       } else
       {
         zonal_stats_seg.unique <- data.frame(zonal_stats_seg.unique, zonal_stats.var[2])
@@ -280,4 +304,20 @@ zonal_stats_raster.tiles <- function(seg.raster.tiles, list.rasters, clusters)
   }
   
   return(zonal_stats_seg.unique)  
+}
+
+##################################################################################################################
+#
+# Function to calculate the mathematical mode of a vector (most common value)
+#
+
+Mode <- function(x, na.rm = TRUE) 
+{
+   if(na.rm)
+   {
+      x = x[!is.na(x)]
+   }
+   
+   ux <- unique(x)
+   return(ux[which.max(tabulate(match(x, ux)))])
 }
