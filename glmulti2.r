@@ -64,9 +64,17 @@ glmulti2 <- function(formula, data, variables, family,  width=NA, maxterms=NA, t
       
       M <- glm(formula.test, data=data, family=family)
       
-      # Test if all p values are significant
+      # Test if all p values are significant, for factors only one term needs to be significant
+      significant <- F
+      if (class(data[,var]) == "factor")
+      {
+         significant <- all(!is.na(coef(M))) && any(coef(summary(M))[2:nrow(coef(summary(M))),4]<0.05)
+      } else
+      {
+         significant <- all(!is.na(coef(M))) && all(coef(summary(M))[2:nrow(coef(summary(M))),4]<0.05)
+      }
             
-      if (all(!is.na(coef(M))) && all(coef(summary(M))[2:nrow(coef(summary(M))),4]<0.05))
+      if (significant)
       {                                   
         # If so try adding additional explanatory variables to improve the model
         if (is.null(M.best.new) || fit(M) < fit(M.best.new))
