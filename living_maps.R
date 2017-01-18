@@ -10,6 +10,18 @@
 
 classify <- function(training.data, classes, classcol.name, variables, ndi=NULL, ri=NULL)
 {
+   # For factors add individual values
+   for (var in variables)
+   {
+      if (class(training.data[,var]) == "factor")
+      {
+         for (cat in unique(training.data[,var]))
+         {
+            variables <- append(variables, paste("eval(",var," == '", cat, "')",sep=""))
+         }
+      }
+   }
+   
    # Add normalised differential indices to the list of variables
    for (i in ndi)
    {
@@ -28,7 +40,6 @@ classify <- function(training.data, classes, classcol.name, variables, ndi=NULL,
    }
    
    # Now fit binonial regression models to each habitat using the list of variables
-   
    M.list <- NULL
    
    for (habitat in classes)

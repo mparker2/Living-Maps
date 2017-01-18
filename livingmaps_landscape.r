@@ -157,9 +157,8 @@ training.data <- read.table("training_data/training_data.txt", sep="\t", header=
 training.data$vectormap <- as.factor(training.data$vectormap)
 
 # Specify the variables and indices to be included in the model
-variables <- names(training.data)[c(5:14, 25:26, 35:38)]
-#ndi <- list(c(12,7), c(12, 13)) # NDVI and NDWI
-ndi <- NULL
+variables <- names(training.data)[c(5:14, 25:26, 35:37)]
+ndi <- list(c(12,7), c(12, 13)) # NDVI and NDWI
 
 # Classify broad habitats using the Feature_Ty column of the training data
 M.broad <- classify(training.data, unique(training.data$Feature_Ty), "Feature_Ty", variables, ndi)
