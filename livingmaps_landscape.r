@@ -1,6 +1,6 @@
 #############################################################################################
 #
-# Border Mires automated object-based classification using GLMs
+# Automated object-based classification using GLMs for landscape pioneer
 #
 
 library(rgdal)
@@ -38,6 +38,11 @@ OS_VectorMap <- "OS/NDevon_VectorMap_District.tif"
 
 
 list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
+                     S2_summer_blue_sd=c(S2_summer, 1, "sd"),
+                     S2_summer_blue_median=c(S2_summer, 1, "median"),
+                     S2_summer_blue_mode=c(S2_summer, 1, "mode"),
+                     S2_summer_blue_min=c(S2_summer, 1, "min"),
+                     S2_summer_blue_max=c(S2_summer, 1, "max"),
                      S2_summer_green=c(S2_summer, 2),
                      S2_summer_red=c(S2_summer, 3),
                      S2_summer_rededge5=c(S2_summer, 4),
@@ -131,13 +136,10 @@ for(c in unique(training.data.all$Feature_De))
    training.data.sub <- subset(training.data.all, Feature_De==c)
    
    # Split the data using a random sample
-   #subset <- random.subset(training.data.sub, 0.8)
-   #training.data <- rbind(training.data, training.data.sub[subset,])
-   #training.data.test <- rbind(training.data.test, training.data.sub[-subset,])
-   
-   # Split the data in half to allow consist comparison of models
-   training.data <- rbind(training.data, training.data.sub[c(T,F),])
-   training.data.test <- rbind(training.data.test, training.data.sub[c(F,T),])
+   set.seed(-1) # Set a random seed to ensure consistent training and test datasets
+   subset <- random.subset(training.data.sub, 0.8)
+   training.data <- rbind(training.data, training.data.sub[subset,])
+   training.data.test <- rbind(training.data.test, training.data.sub[-subset,])
    
    rownames(training.data.test) <- NULL
 }
@@ -157,8 +159,9 @@ training.data <- read.table("training_data/training_data.txt", sep="\t", header=
 training.data$vectormap <- as.factor(training.data$vectormap)
 
 # Specify the variables and indices to be included in the model
-variables <- names(training.data)[c(5:14, 25:26, 35:37)]
-ndi <- list(c(12,7), c(12, 13)) # NDVI and NDWI
+variables <- names(training.data)[c(5:14, 25:26, 35:38)]
+#ndi <- list(c(12,7), c(12, 13)) # NDVI and NDWI
+ndi <- NULL
 
 # Classify broad habitats using the Feature_Ty column of the training data
 M.broad <- classify(training.data, unique(training.data$Feature_Ty), "Feature_Ty", variables, ndi)
