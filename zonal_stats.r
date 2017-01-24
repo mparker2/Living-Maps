@@ -39,7 +39,6 @@
 # 12 January 2017
 #   - Added support for mode statistic
 #
-# Nb. foreach requires a vector with at least two elements, so tiles must be > 1 and length(list.rasters) > 1
 
 library(foreach)
 library(doSNOW)
@@ -288,7 +287,7 @@ zonal_stats_raster.tiles <- function(seg.raster.tiles, list.rasters, clusters)
   {
       var <- names(list.rasters)[i]
       fun <- "mean"
-      if (length(list.rasters[[j]]) > 2) {fun <- list.rasters[[j]][3]}
+      if (length(list.rasters[[i]]) > 2) {fun <- list.rasters[[i]][3]}
      
      # Calculate weighted mean etc. for segmented polygons split across tiles.  
      # For median and sd, these cannot be reversed so use the median value 
