@@ -70,14 +70,14 @@ barplot.confusion.matrix <- function(confusion, plot_user=TRUE) {
   if (plot_user) {
     xticklabs <- paste(names(confusion$user.accuracy),
                        sprintf('%.1f%%', confusion$user.accuracy))
-    xvar <- 'User'
-    fillvar <- 'Producer'
+    xvar <- 'Producer'
+    fillvar <- 'User'
   }
   else {
     xticklabs <- paste(names(confusion$producer.accuracy),
                        sprintf('%.1f%%', confusion$producer.accuracy))
-    xvar <- 'Producer'
-    fillvar <- 'User'
+    xvar <- 'User'
+    fillvar <- 'Producer'
   }
   
   g <- ggplot(data=cm, aes_string(x=xvar, y='Count', fill=fillvar)) +
