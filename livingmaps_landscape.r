@@ -1,16 +1,20 @@
 #############################################################################################
 #
-# Border Mires automated object-based classification using GLMs
+# Automated object-based classification using GLMs for landscape pioneer
 #
 
 library(rgdal)
 library(raster)
 library(rgeos)
-
-source("C:/Users/Bertie/Documents/LivingMaps/Living-Maps.git/trunk/glmulti2.r")
-source("C:/Users/Bertie/Documents/LivingMaps/Living-Maps.git/trunk/zonal_stats.r")
+library(randomForest)
+library(impute) # install zip file from: www.bioconductor.org/packages/release/bioc/html/impute.html
 
 setwd("C:/Users/Bertie/Documents/LivingMaps")
+
+source("Living-Maps.git/trunk/glmulti2.r")
+source("Living-Maps.git/trunk/zonal_stats.r")
+source("Living-Maps.git/trunk/user_producer_accuracy.r")
+source("Living-Maps.git/trunk/living_maps.R")
 
 training.data.habitat.shp <- readOGR("Training_Data/Living_Maps_FEP_Data_Landscape_Training_Points.shp", "Living_Maps_FEP_Data_Landscape_Training_Points")
 training.data.os.shp <- readOGR ("OS/NDevonDart_OS_trainingpoints/OS_VectorMapTrainingUpdate.shp", "OS_VectorMapTrainingUpdate")
@@ -32,7 +36,15 @@ sar_summer <- "S1/S1_NDevonDart/dartmoor_2016_07_06_bng.tif"
 sar_winter <- "S1/S1_NDevonDart/dartmoor_2016_01_08_bng.tif"
 LSU_summer <- "LSU/Outputs/NDevonDart_S2_20160719_37_5_unmixed.tif"
 LSU_winter <- "LSU/Outputs/NDevonDart_S2_20161106_37_5_unmixed.tif" 
-
+OS_VectorMap <- "OS/NDevon_VectorMap_District.tif"
+OS_dist_building <- "OS/Distance_to_Buildings.tif"
+OS_dist_foreshore <- "OS/Distance_to_Foreshore.tif"
+OS_dist_surfacewater <- "OS/Distance_to_SurfaceWater.tif"
+OS_dist_tidalwater <- "OS/Distance_to_TidalWater.tif"
+OS_dist_woodland <- "OS/Distance_to_Woodland.tif"
+bioclim_max_temp <- "Rasters/bioclim_max_temp.tif"
+bioclim_min_temp <- "Rasters/bioclim_min_temp.tif"
+bioclim_annual_rainfall <- "Rasters/bioclim_annual_rainfall.tif"
 
 list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
                      S2_summer_green=c(S2_summer, 2),
@@ -66,35 +78,64 @@ list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
                      LSU_winter_PV=c(LSU_winter,3),                   
                      height=c(height,1), 
                      slope=c(slope,1), 
-                     aspect=c(aspect, 1))
-
-
-#############################################################################################
-#
-# Training data (Zonal Stats)
-#
-
-# Append the OS training points to the habitat training points
-names(training.data.os.shp)[2:3] <- c("Feature_De", "Feature_Ty")
-
-## Add a column to os.shp called Tier and allocate a value of 1
-training.data.os.shp$Tier <- 1
-
-## Concatenate Feature_De, Feature_Ty and Tier columns from training.data.habitat.shp with the same from the OS data
-training.data.shp <- rbind(training.data.habitat.shp[c(5:6,10)], training.data.os.shp[2:4])
-
-zonal_stats_training_data <-zonal_stats(buffer(training.data.shp,10,dissolve=F), list.rasters, 10, clusters=8, tiles=15)
-
-training.data <- training.data.shp[1:3]
-
-## Add a column to training.data called ID and allocate a value of 1 to the number of rows in training.data
-training.data$ID <- 1:nrow(training.data)
-
-## Merge traing.data and zonal_stats_training_data by the ID column
-training.data <- merge(training.data, zonal_stats_training_data, by="ID")
-
-## Write training_data to text file (training_data.txt)
-write.table(training.data, "training_data/training_data.txt", sep="\t")
+                     aspect=c(aspect, 1), 
+                     vectormap=c(OS_VectorMap, 1, "mode"), 
+                     S2_summer_blue_median=c(S2_summer, 1, "median"),
+                     S2_summer_green_median=c(S2_summer, 2, "median"),
+                     S2_summer_red_median=c(S2_summer, 3, "median"),
+                     S2_summer_rededge5_median=c(S2_summer, 4, "median"),
+                     S2_summer_rededge6_median=c(S2_summer, 5, "median"),
+                     S2_summer_rededge7_median=c(S2_summer, 6, "median"),
+                     S2_summer_rededge8a_median=c(S2_summer, 7, "median"),
+                     S2_summer_nir_median=c(S2_summer, 8, "median"),
+                     S2_summer_swir1_median=c(S2_summer, 9, "median"),
+                     S2_summer_swir2_median=c(S2_summer, 10, "median"),
+                     S2_winter_blue_median=c(S2_winter, 1, "median"),
+                     S2_winter_green_median=c(S2_winter, 2, "median"),
+                     S2_winter_red_median=c(S2_winter, 3, "median"),
+                     S2_winter_rededge5_median=c(S2_winter, 4, "median"),
+                     S2_winter_rededge6_median=c(S2_winter, 5, "median"),
+                     S2_winter_rededge7_median=c(S2_winter, 6, "median"),
+                     S2_winter_rededge8a_median=c(S2_winter, 7, "median"),
+                     S2_winter_nir_median=c(S2_winter, 8, "median"),
+                     S2_winter_swir1_median=c(S2_winter, 9, "median"),
+                     S2_winter_swir2_median=c(S2_winter, 10, "median"),
+                     sar_summer_vh_median=c(sar_summer,1, "median"),
+                     sar_summer_vv_median=c(sar_summer,2, "median"),
+                     sar_winter_vh_median=c(sar_winter,1, "median"),
+                     sar_winter_vv_median=c(sar_winter,2, "median"),
+                     S2_summer_blue_sd=c(S2_summer, 1, "sd"),
+                     S2_summer_green_sd=c(S2_summer, 2, "sd"),
+                     S2_summer_red_sd=c(S2_summer, 3, "sd"),
+                     S2_summer_rededge5_sd=c(S2_summer, 4, "sd"),
+                     S2_summer_rededge6_sd=c(S2_summer, 5, "sd"),
+                     S2_summer_rededge7_sd=c(S2_summer, 6, "sd"),
+                     S2_summer_rededge8a_sd=c(S2_summer, 7, "sd"),
+                     S2_summer_nir_sd=c(S2_summer, 8, "sd"),
+                     S2_summer_swir1_sd=c(S2_summer, 9, "sd"),
+                     S2_summer_swir2_sd=c(S2_summer, 10, "sd"),
+                     S2_winter_blue_sd=c(S2_winter, 1, "sd"),
+                     S2_winter_green_sd=c(S2_winter, 2, "sd"),
+                     S2_winter_red_sd=c(S2_winter, 3, "sd"),
+                     S2_winter_rededge5_sd=c(S2_winter, 4, "sd"),
+                     S2_winter_rededge6_sd=c(S2_winter, 5, "sd"),
+                     S2_winter_rededge7_sd=c(S2_winter, 6, "sd"),
+                     S2_winter_rededge8a_sd=c(S2_winter, 7, "sd"),
+                     S2_winter_nir_sd=c(S2_winter, 8, "sd"),
+                     S2_winter_swir1_sd=c(S2_winter, 9, "sd"),
+                     S2_winter_swir2_sd=c(S2_winter, 10, "sd"),
+                     sar_summer_vh_sd=c(sar_summer,1, "sd"),
+                     sar_summer_vv_sd=c(sar_summer,2, "sd"),
+                     sar_winter_vh_sd=c(sar_winter,1, "sd"),
+                     sar_winter_vv_sd=c(sar_winter,2, "sd"),
+                     dist_building=c(OS_dist_building,1),
+                     dist_surfacewater=c(OS_dist_surfacewater,1),
+                     dist_tidalwater=c(OS_dist_tidalwater,1),
+                     dist_woodland=c(OS_dist_woodland,1),
+                     dist_foreshore=c(OS_dist_foreshore,1), 
+                     min_temp=c(bioclim_min_temp,1),
+                     max_temp=c(bioclim_max_temp,1),
+                     annual_rainfall=c(bioclim_annual_rainfall,1))
 
 #############################################################################################
 #
@@ -103,196 +144,137 @@ write.table(training.data, "training_data/training_data.txt", sep="\t")
 
 segmentation.raster <-raster("Segmentation/Living_Maps_Segmentation_Dartmoor.tif")
 
+# Calculate the zonal stats for each segmented polygon.  This takes a long time to run!!!!  
 zonal_stats_seg <- zonal_stats_raster(segmentation.raster, list.rasters, clusters=8, tiles=10)
+#Save the results as an intermediate file (just in case)
+write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg_all.txt", sep="\t")
 
-write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg.txt", sep="\t")
+# Append area and perimeter from shapefile
+zonal_stats_seg <- merge(zonal_stats_seg, segmentation.shp, by="ID")
+zonal_stats_seg$area_ratio1 <- with(zonal_stats_seg, Shape_Area/Shape_Leng)
+zonal_stats_seg$area_ratio2 <- with(zonal_stats_seg, Shape_Leng/sqrt(Shape_Area))
 
-#############################################################################################
-#
-# Callback function to display user/producer errors for individual habitats during classification
-#
+# Impute missing values for all S1 and S2 columns, excluding max and min statistics
+impute.cols <- grepl("S2|sar|LSU",colnames(zonal_stats_seg)) & !grepl("max|min",colnames(zonal_stats_seg))
+zonal_stats.imputed <- impute.knn(as.matrix(zonal_stats_seg[,impute.cols]))
+zonal_stats_seg <- cbind(zonal_stats_seg[,!impute.cols], zonal_stats.imputed$data[,colnames(zonal_stats_seg)[impute.cols]])
 
-calcerrors <- function (M, data)
-{
-  # Calculate user and producer errors
-  p <- predict(M, data, type="response")
-  p.prod <- round(sum(p >= 0.5 & data[2] == habitat, na.rm=T) / sum(data[2] == habitat)*100,1)
-  p.user <- round((sum(p >= 0.5 & data[2] == habitat, na.rm=T) + sum(p < 0.5 & data[2] != habitat, na.rm=T)) / nrow(data)*100,1)
-  
-  return(paste(" prod=", p.prod, " user=", p.user, sep=""))
-}
+# Calculate NDVI and NDWI
+zonal_stats_seg$S2_summer_ndvi <- with(zonal_stats_seg, (S2_summer_nir - S2_summer_red)/(S2_summer_nir + S2_summer_red))
+zonal_stats_seg$S2_summer_ndwi <- with(zonal_stats_seg, (S2_summer_nir - S2_summer_swir1)/(S2_summer_nir + S2_summer_swir1))
+zonal_stats_seg$S2_winter_ndvi <- with(zonal_stats_seg, (S2_winter_nir - S2_winter_red)/(S2_winter_nir + S2_winter_red))
+zonal_stats_seg$S2_winter_ndwi <- with(zonal_stats_seg, (S2_winter_nir - S2_winter_swir1)/(S2_winter_nir + S2_winter_swir1))
 
+# Ensure that catagorical data doesn't having any missing values
+zonal_stats_seg$vectormap[is.na(zonal_stats_seg$vectormap)] <- 0
 
-#############################################################################################
-# 
-# Function to build models for each habitat class using training data
-#
-
-classify <- function(training.data, classes, classcol.name)
-{
-  
-  # Create a list of variables (10 changed to 14...)
-  variables <- names(training.data)[c(5:14, 35:37)]
-  
-  # Calculate vegetation indices for groups of variables (ie S2 summer, S2 winter)
-  indices <- list(5:14, 15:24)
-  
-  for (range in indices)
-  {
-    for (i in min(range):(max(range)-1))
-    {
-      for (j in min(i+1,max(range)):max(range))
-      {
-        a <- names(training.data)[i]
-        b <- names(training.data)[j]
-        
-        #variables <- c(variables, paste("(",a,"-",b,")/(",a, "+", b, ")"))  # Normalised
-        #variables <- c(variables, paste(a, "/", b))  # Ratio
-        #variables <- c(variables, paste(a, "-", b))  # Difference
-      }
-    }
-  }
-  
-  
-  # Now fit binonial regression models to each habitat using the list of variables
-  
-  M.list <- NULL
-  #habitats <<- NULL
-  
-  for (habitat in classes)
-  {
-    print(habitat)
-    habitat <<- habitat # Copy habitat as a global variable so visible to calcerrors function
-    
-    # Add normalised versions of variables
-    variables1 <- variables
-    
-      # Select a subset of the training points for the current habitat
-    habitat.data <- data.frame(subset(training.data, eval(parse(text=classcol.name)) == habitat))
-    
-    for (var in variables) 
-    {
-      m <- round(mean(eval(parse(text=var), habitat.data), na.rm=T),5)
-      s <- round(sd(eval(parse(text=var), habitat.data), na.rm=T),5)
-      
-      # Add the transformed variable to the list of candidate explanatory variables
-      if (!is.na(m) && !is.na(s))
-      {
-        f <- paste("eval(dnorm(",var,",", m, ", ", s,"))", sep="")
-        variables1 <- c(variables1, f)
-      } 
-    }
-    
-    M <-glmulti2(paste(classcol.name, "=='", habitat,"' ~",sep=""), training.data, variables1, "binomial", maxterms=5, width=3)
-    if (!is.null(M))
-    {   
-        M.list <- append(M.list, list(list(model=M, class=habitat)))
-        #habitats <<- c(habitats, habitat)
-    }
-  }
-  
-  return(M.list)
-}
+write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg_all.txt", sep="\t")
 
 #############################################################################################
 #
-# Classify training data
+# Training data (Zonal Stats)
 #
 
-## Read in the training data txt
-training.data <- read.table("training_data/training_data.txt", sep="\t", header=T)
-
-# Select the training data for points with accurate spatial mapping (Tier=1) and for mappable habitat classes
-training.data <- subset(training.data, Tier==1)
-
-## Select the classes you want to map from the Feature_De column of the training.data
-training.data <- training.data[grepl("BAP|^G0|^M|^T0[4-8]|^T10|^V0[2-5]|Building|Sea|Surface water|Mud, sand or shingle", training.data$Feature_De),]
-
-# Classify broad habitats using the Feature_Ty column of the training data
-M.broad <- classify(training.data, unique(training.data$Feature_Ty), "Feature_Ty")
-
-# Classify sub-habitat for each broad habitat class
-M.detailed <- NULL
-for (l in M.broad)
-{
-   print(l$class)
-   training.data.sub <- subset(training.data, Feature_Ty == l$class)
-   M.list <- classify(training.data.sub, unique(training.data.sub$Feature_De), "Feature_De")
-   
-   M.detailed <- append(M.detailed, list(list(broad=l$class, submodels=M.list)))
-}
-
-#M.list <- NULL
-#M.list <- classify(training.data, levels(training.data$Feature_De), "Feature_De")
-
-
-#############################################################################################
-
-# Running the model for each of our classes
+nmax <- 30 #### Number of training points per class
+nmin <- 10 ### Minimum number of training points per class
 
 if (!exists("zonal_stats_seg"))
 {
-   zonal_stats_seg <- read.table("zonal_stats/zonal_stats_seg.txt", sep="\t", header=T)
+   zonal_stats_seg <- read.table("zonal_stats/zonal_stats_seg_all.txt", sep="\t", header=T, as.is=T)
 }
+segmentation.raster <-raster("Segmentation/Living_Maps_Segmentation_Dartmoor.tif")
 
-results<-data.frame(ID=zonal_stats_seg$ID)
+# Append the OS training points to the habitat training points
+names(training.data.os.shp)[2:3] <- c("Feature_De", "Feature_Ty")
 
-# Predict broad habitats
-names.broad <- NULL
-for (m in M.broad)
+## Add a column to os.shp called Tier and allocate a value of 1
+training.data.os.shp$Tier <- 1
+
+## Concatenate Feature_De, Feature_Ty and Tier columns from training.data.habitat.shp with the same from the OS data
+training.data.shp <- rbind(training.data.habitat.shp[c("Feature_De","Feature_Ty","Tier")], training.data.os.shp[c("Feature_De","Feature_Ty","Tier")])
+
+# Identify the segmented polygons the training points fall within and extract the zonal statistics from these
+training.data.ids <- extract(segmentation.raster, training.data.shp)
+training.data <- merge(data.frame(ID=1:nrow(training.data.shp), training.data.shp[1:3], seg.id=training.data.ids), zonal_stats_seg, by.x="seg.id", by.y="ID") 
+
+# Select the required columns
+training.data <- training.data[c(2:5,9:ncol(training.data))]
+
+training.data.all <- training.data
+
+# Remove rows with mising values
+training.data.all <- training.data.all[complete.cases(training.data.all),]
+
+# Select the training data for points with accurate spatial mapping and for mappable habitat classes
+training.data.all <- subset(training.data.all, Tier<=2)
+
+## Select the classes you want to map from the Feature_Ty column of the training.data
+training.data.all <- training.data.all[!grepl("boundaries|plant", training.data.all$Feature_Ty),]
+
+# Split into stratified training and test datasets
+training.data <- NULL
+training.data.test <- NULL
+
+# Loop through all the classes
+for(c in unique(training.data.all$Feature_De))
 {
-   print (m$class)
-   p <-predict(m$model,zonal_stats_seg,type="response")
+   # Select the subset of rows for the current class
+   training.data.sub <- subset(training.data.all, Feature_De==c)
    
-   results<-cbind(results,p)
+   # Select a sample prioritising the training points from the highest tier
+   n <- nrow(training.data.sub)
+   prb <- ifelse(training.data.sub$Tier == 1,0.75,0.25)
+   training.data.sub <- training.data.sub[sample(n, min(nmax,n), prob=prb), ]
    
-   names(results)[length(names(results))]<-m$class
-   names.broad <- c(names.broad, m$class)
+   # Only include classes with at least the minimum number of training points
+   if (nrow(training.data.sub) >= nmin)
+   {
+      # Split the data using a random sample
+      set.seed(-1) # Set a random seed to ensure consistent training and test datasets
+      subset <- random.subset(training.data.sub, 0.8)
+      training.data <- rbind(training.data, training.data.sub[subset,])
+      training.data.test <- rbind(training.data.test, training.data.sub[-subset,])
+      
+      rownames(training.data.test) <- NULL
+   }
 }
 
-# Now create a table with the broad habitat predicted for each segmented polygon
-results.broad <- data.frame(ID=zonal_stats_seg$ID, broad=names.broad[max.col(results[2:ncol(results)])], prob.broad=apply(results[2:ncol(results)],1, max))
-
-# Now sub-classify detailed habitats
-results.all <- NULL
-for (m in M.detailed)
-{
-   # For each broad habitat extract the zonal stats for these segmented polygons
-    print (m$broad)
-    zonal_stats_seg.broad <- merge(zonal_stats_seg, subset(results.broad, broad==m$broad), by="ID")
-    
-    if (nrow(zonal_stats_seg.broad) > 0 && !is.null(m$submodels))
-    {
-      # Now run the model for each sub-class to calculate its probability
-       results <- data.frame(ID=zonal_stats_seg.broad$ID)
-       names.detailed <- NULL
-       
-       for (m.sub in m$submodels)
-       {
-          print(m.sub$class)
-          p <- predict(m.sub$model, zonal_stats_seg.broad, type="response")
-          results <- cbind(results, p)   
-          names(results)[length(names(results))]<-m.sub$class
-          names.detailed <- c(names.detailed, m.sub$class)
-       }
-       # Now create a table with the broad habitat predicted for each segmented polygon
-       results.detailed <- data.frame(ID=zonal_stats_seg.broad$ID, detailed=names.detailed[max.col(results[2:ncol(results)])], prob.detailed=apply(results[2:ncol(results)],1, max))
-       
-       # Merge the results into results.broad
-       results.detailed <- merge(results.broad, results.detailed, by="ID")
-       
-       results.all <- rbind(results.all, results.detailed)
-    }
-}
-
-
+## Write training_data to text file (training_data.txt)
+write.table(training.data, "training_data/training_data.txt", sep="\t")
+write.table(training.data.test, "training_data/training_data_test.txt", sep="\t")
 
 #############################################################################################
 #
-# Merge results into shapefile
+# Classify training points using random forest
 
-segmentation.p <- merge(segmentation.shp, results.all, by="ID")
+if (!exists("zonal_stats_seg"))
+{
+   zonal_stats_seg <- read.table("zonal_stats/zonal_stats_seg.txt", sep="\t", header=T, as.is=T)
+}
 
-writeOGR(segmentation.p, "Outputs/Living_Maps_Dartmoor_Detailed.shp", "Living_Maps_Dartmoor_Detailed", driver="ESRI Shapefile", overwrite=T)
+# Read in training and test datasets
+training.data <- read.table("training_data/training_data.txt", sep="\t", header=T)
+training.data.test <- read.table("training_data/training_data_test.txt", sep="\t", header=T)
 
+# Ensure that any catagorical data are converted to factors
+training.data$vectormap <- as.factor(training.data$vectormap)
+training.data.test$vectormap <- as.factor(training.data.test$vectormap)
+zonal_stats_seg$vectormap <- as.factor(zonal_stats_seg$vectormap)
+
+# Predict detailed habitats using random forest
+training.data$Feature_De <- as.factor(as.character(training.data$Feature_De))
+M.rf.detailed <- randomForest(Feature_De ~ ., data=training.data[c(2,5:ncol(training.data))], na.action=na.omit)
+
+results.detailed <- predict(M.rf.detailed, zonal_stats_seg, type="response", progress="text")
+
+# Calculate confusion matrix
+p <- predict(M.rf.detailed, training.data.test, type="response")
+confusion.matrix(training.data.test$Feature_De, p)
+
+# Combine results with segmentation polygons and save to new shapefile
+results.rf <- data.frame(ID=zonal_stats_seg$ID, detailed=results.detailed)
+segmentation.p <- merge(segmentation.shp, results.rf, by="ID")
+writeOGR(segmentation.p, "Outputs/Living_Maps_Dartmoor_RF_Detailed.shp", "Living_Maps_Dartmoor_RF_Detailed", driver="ESRI Shapefile", overwrite=T)
 rm(segmentation.p)
+
+###############################################################################

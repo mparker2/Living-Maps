@@ -65,7 +65,7 @@ glmulti2 <- function(formula, data, variables, family,  width=NA, maxterms=NA, t
       M <- glm(formula.test, data=data, family=family)
       
       # Test if all p values are significant
-            
+      
       if (all(!is.na(coef(M))) && all(coef(summary(M))[2:nrow(coef(summary(M))),4]<0.05))
       {                                   
         # If so try adding additional explanatory variables to improve the model
