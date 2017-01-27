@@ -1,22 +1,12 @@
+library(reshape2)
+library(ggplot2)
 
 # Create subset to split training points for training and testing
-random.subset <- function(df, frac.training) {
+random.subset <- function(df, frac.training, seed=1001) {
+  set.seed(1001)
   frac <- floor((nrow(df) * frac.training))
   subset <- sample(nrow(df), size=frac)
   return (subset)
-}
-
-# Produces user / producer accuracy
-# depending on whether rowSums or colSums is passed
-user.producer.accuracy <- function(i, confusion.table, f=rowSums) {
-  tots <- f(confusion.table)
-  # replace NaNs with 0 if there is no data for the row/col
-  if (tots[i] == 0) {
-    return(0.0)
-  }
-  else {
-    return (confusion.table[i,i]/tots[i] * 100)
-  }
 }
 
 # produce confusion matrix and user / produce accuracies
@@ -32,10 +22,11 @@ confusion.matrix <- function(user, producer) {
   range <- as.matrix(1:n)
   # total accuracy is the sum of the diagonal divided by the sum of the whole
   total.accuracy <- sum(diag(confusion.table)) / sum(confusion.table) * 100
-  user.accuracy <- apply(range, MARGIN=1, FUN=user.producer.error,
-                         confusion.table=confusion.table, f=colSums)
-  producer.accuracy <- apply(range, MARGIN=1, FUN=user.producer.accuracy,
-                             confusion.table=confusion.table, f=rowSums)
+  #user accuracy is the diagonal divided by colSums
+  user.accuracy <- diag(confusion.table) / colSums(confusion.table) * 100
+  #producer accuracy is the diagonal divided by rowSums
+  producer.accuracy <- diag(confusion.table) / rowSums(confusion.table) * 100
+
   names(user.accuracy) <- colnames(confusion.table)
   names(producer.accuracy) <- rownames(confusion.table)
   
@@ -45,32 +36,54 @@ confusion.matrix <- function(user, producer) {
                total.accuracy=total.accuracy))
 }
 
-library(randomForest)
-library(e1071)
-library(monmlp)
+broadclass.confusion.matrix <- function(user, broaduser, producer) {
+  user <- as.factor(user)
+  broaduser <- as.factor(broaduser)
+  producer <- as.factor(producer)
+  # if user and producer are different lengths, something is wrong!
+  stopifnot(length(user) == length(producer))
+  stopifnot(length(user) == length(broaduser))
+  
+  # make a vector mapping subclasses to broad classes
+  subclasses <- levels(user)
+  n.subclass <- length(subclasses)
+  broadclasses <- character(n.subclass)
+  for (i in 1:n.subclass) {
+    broadclasses[i] <- as.character(
+      broaduser[user == subclasses[i]][1]
+    )
+  }
+  names(broadclasses) <- subclasses
+  
+  # get predictions at broader class level
+  broadproducer <- factor(
+    unlist(lapply(producer,
+                  FUN=function(x) {broadclasses[[x]]})),
+    levels=levels(broaduser)
+  )
+  return (confusion.matrix(broaduser, broadproducer))
+}
 
-setwd('C:\\Users\\Matthew\\Documents\\GitHub\\Living-Maps\\Living_Maps_Segmentation_Dartmoor')
-source('../glmulti2.R')
-
-training.data <- read.table("training_data.txt", sep="\t", header=T)
-# Use only Tier 1 data and complete cases, as svm / random forest cannot deal with missing values
-training.data.clean <- training.data[complete.cases(training.data) & training.data$Tier == 1,
-                                     c(3, 5:(ncol(training.data) - 3))]
-
-# Use 80% of data for training and 20% for testing
-subset <- random.subset(training.data.clean, 0.8)
-training.data.input <- training.data.clean[subset,]
-training.data.test <- training.data.clean[-subset,]
-
-M.glm <- glmulti2("Feature_Ty ~", data=training.data.test,
-                  variables=colnames(training.data.test)[2:ncol(training.data.test)])
-p.glm <- predict(M.glm, newdata=training.data.test)
-confusion.matrix(training.data.test$Feature_Ty, p.glm)
-
-M.rf <- randomForest(Feature_Ty ~ ., data=training.data.input, ntree=200)
-p.rf <- predict(M.rf, newdata=training.data.test)
-confusion.matrix(training.data.test$Feature_Ty, p.rf)
-
-M.svm <- svm(Feature_Ty ~ ., data=training.data.input)
-p.svm <- predict(M.svm, newdata=training.data.test)
-confusion.matrix(training.data.test$Feature_Ty, p.svm)
+barplot.confusion.matrix <- function(confusion, plot_user=TRUE) {
+  cm <- melt(confusion$table)
+  colnames(cm) <- c('User', 'Producer', 'Count')
+  if (plot_user) {
+    xticklabs <- paste(names(confusion$user.accuracy),
+                       sprintf('%.1f%%', confusion$user.accuracy))
+    xvar <- 'User'
+    fillvar <- 'Producer'
+  }
+  else {
+    xticklabs <- paste(names(confusion$producer.accuracy),
+                       sprintf('%.1f%%', confusion$producer.accuracy))
+    xvar <- 'Producer'
+    fillvar <- 'User'
+  }
+  
+  g <- ggplot(data=cm, aes_string(x=xvar, y='Count', fill=fillvar)) +
+    geom_bar(stat="identity") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_x_discrete(labels=xticklabs) +
+    ggtitle(sprintf('Total Accuracy - %.2f%%', confusion$total.accuracy))
+  return(g)
+}
