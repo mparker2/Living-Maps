@@ -160,7 +160,8 @@ segmentation.raster <-raster("Segmentation/Living_Maps_Segmentation_Dartmoor.tif
 #proc.time()-start
 
 #Save the results as an intermediate file (just in case)
-#write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg_all.txt", sep="\t")
+zonal_stats_seg <- write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg.txt", sep="\t")
+zonal_stats_seg <- read.table("zonal_stats/zonal_stats_seg.txt", sep="\t", header=T)
 
 # Append area and perimeter from shapefile if not already calculated
 if (!"area_ratio1" %in% names(zonal_stats_seg))
@@ -255,6 +256,7 @@ training.data <- NULL
 training.data.test <- NULL
 
 # Loop through all the classes
+set.seed(2) # Set a random seed to ensure consistent training and test datasets
 for(c in unique(training.data.all$Feature_De))
 {
    # Select the subset of rows for the current class
@@ -263,13 +265,14 @@ for(c in unique(training.data.all$Feature_De))
    # Select a sample prioritising the training points from the highest tier
    n <- nrow(training.data.sub)
    prb <- ifelse(training.data.sub$Tier == 1,0.75,0.25)
-   training.data.sub <- training.data.sub[sample(n, min(nmax,n), prob=prb), ]
+   #training.data.sub <- training.data.sub[sample(n, min(nmax,n), prob=prb), ]
+   training.data.sub <- training.data.sub[sample(n, nmax, prob=prb, replace=T), ]
    
    # Only include classes with at least the minimum number of training points
    if (nrow(training.data.sub) >= nmin)
    {
       # Split the data using a random sample
-      set.seed(-1) # Set a random seed to ensure consistent training and test datasets
+      #set.seed(1)
       subset <- random.subset(training.data.sub, 0.8)
       training.data <- rbind(training.data, training.data.sub[subset,])
       training.data.test <- rbind(training.data.test, training.data.sub[-subset,])
@@ -299,11 +302,9 @@ training.data.test <- read.table("training_data/training_data_test.txt", sep="\t
 training.data$vectormap <- as.factor(training.data$vectormap)
 training.data.test$vectormap <- as.factor(training.data.test$vectormap)
 zonal_stats_seg$vectormap <- as.factor(zonal_stats_seg$vectormap)
+training.data$Feature_De <- as.factor(as.character(training.data$Feature_De))
 
 # Predict detailed habitats using random forest
-training.data$Feature_De <- as.factor(as.character(training.data$Feature_De))
-#M.rf.detailed <- randomForest(Feature_De ~ ., data=training.data[c(2,5:ncol(training.data))], na.action=na.omit)
-
 #Run for only the top 40 most important variables
 M.rf.detailed.all <- randomForest(Feature_De ~ ., data=training.data[c(2,5:ncol(training.data))], na.action=na.omit)
 i <- colnames(training.data) %in% c(rownames(M.rf.detailed.all$importance)[order(M.rf.detailed.all$importance, decreasing=T)][1:38],"Feature_De")
@@ -313,6 +314,7 @@ M.rf.detailed <- randomForest(Feature_De ~ ., data=training.data[i], na.action=n
 p <- predict(M.rf.detailed, training.data.test, type="response")
 confusion.matrix(training.data.test$Feature_De, p)
 
+# Predict classes for all polygons
 results.detailed <- predict(M.rf.detailed, zonal_stats_seg, type="response", progress="text")
 
 # Combine results with segmentation polygons and save to new shapefile

@@ -2,11 +2,16 @@ library(reshape2)
 library(ggplot2)
 
 # Create subset to split training points for training and testing
-random.subset <- function(df, frac.training, seed=1001) {
-  set.seed(1001)
-  frac <- floor((nrow(df) * frac.training))
-  subset <- sample(nrow(df), size=frac)
-  return (subset)
+random.subset <- function(df, frac.training, seed=NA) 
+{
+   if (!is.na(seed))
+   {
+      set.seed(1001)    
+   }
+  
+   frac <- floor((nrow(df) * frac.training))
+   subset <- sample(nrow(df), size=frac)
+   return (subset)
 }
 
 # produce confusion matrix and user / produce accuracies
