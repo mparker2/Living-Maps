@@ -155,9 +155,9 @@ list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
 segmentation.raster <-raster("Segmentation/Living_Maps_Segmentation_Dartmoor.tif")
 
 # Calculate the zonal stats for each segmented polygon.  This takes a long time to run!!!!  
-#start <- proc.time()
-#zonal_stats_seg <- zonal_stats_raster(segmentation.raster, list.rasters, clusters=8, tiles=10)
-#proc.time()-start
+start <- proc.time()
+zonal_stats_seg <- zonal_stats_raster(segmentation.raster, list.rasters, clusters=10, tiles=5)
+proc.time()-start
 
 #Save the results as an intermediate file (just in case)
 zonal_stats_seg <- write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg.txt", sep="\t")
@@ -272,7 +272,6 @@ for(c in unique(training.data.all$Feature_De))
    if (nrow(training.data.sub) >= nmin)
    {
       # Split the data using a random sample
-      #set.seed(1)
       subset <- random.subset(training.data.sub, 0.8)
       training.data <- rbind(training.data, training.data.sub[subset,])
       training.data.test <- rbind(training.data.test, training.data.sub[-subset,])
@@ -280,6 +279,9 @@ for(c in unique(training.data.all$Feature_De))
       rownames(training.data.test) <- NULL
    }
 }
+
+# Remove duplicates from test dataset
+training.data.test <- training.data.test[!duplicated(training.data.test),]
 
 ## Write training_data to text file (training_data.txt)
 write.table(training.data, "training_data/training_data.txt", sep="\t")
