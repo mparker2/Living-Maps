@@ -39,6 +39,12 @@
 # 12 January 2017
 #   - Added support for mode statistic
 #
+# ? January 2017
+#   - Added support for median, standard deviation, min and max statistics
+#
+# 1 February 2017
+#   - Added test that raster list is valid prior to processing in zonal_stats_raster
+#
 
 library(foreach)
 library(doSNOW)
@@ -163,7 +169,12 @@ return(zonal_stats_seg)
 
 zonal_stats_raster <- function(segmentation, list.rasters, clusters=8, tiles=15)
 {
-  
+  # Check that list of rasters is valid prior to processing
+  for (r in list.rasters)
+  {
+     raster(r[[1]], r[[2]])
+  }
+   
   # Initiate parallel processing        
   cluster<-makeCluster(clusters, type = "SOCK") 
   registerDoSNOW(cluster)
