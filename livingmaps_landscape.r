@@ -17,7 +17,7 @@ source("Living-Maps.git/trunk/user_producer_accuracy.r")
 source("Living-Maps.git/trunk/living_maps.R")
 source("Living-Maps.git/trunk/user_producer_accuracy_Matt.r")
 
-training.data.habitat.shp <- readOGR("Training_Data/Living_Maps_FEP_Data_Landscape_Training_Points_170130_5.shp", "Living_Maps_FEP_Data_Landscape_Training_Points_170130_5")
+training.data.habitat.shp <- readOGR("Training_Data/Living_Maps_FEP_Data_Landscape_Training_Points_170130_6.shp", "Living_Maps_FEP_Data_Landscape_Training_Points_170130_6")
 training.data.os.shp <- readOGR ("OS/NDevonDart_Final/OS_VectorMapTraining_final_170126.shp", "OS_VectorMapTraining_final_170126")
 
 start <- proc.time()
@@ -36,13 +36,14 @@ aspect <- "Topography/NDevonDart_EA_IHM/EA_IHM_2014_DTM_Resampled_10m_Subset_ASP
 sar_summer <- "S1/S1_NDevonDart/dartmoor_2016_07_06_bng.tif"
 sar_winter <- "S1/S1_NDevonDart/dartmoor_2016_01_08_bng.tif"
 LSU_summer <- "LSU/Outputs/NDevonDart_S2_20160719_37_5_unmixed.tif"
-LSU_winter <- "LSU/Outputs/NDevonDart_S2_20161106_37_5_unmixed.tif" 
+LSU_winter <- "LSU/Outputs/NDevonDart_S2_20161106_37_5_unmixed.tif"
 OS_VectorMap <- "OS/NDevon_VectorMap_District.tif"
 OS_dist_building <- "OS/NDevonDart_proximity_rasters/Distance_to_Buildings.tif"
 OS_dist_foreshore <- "OS/NDevonDart_proximity_rasters/Distance_to_Foreshore.tif"
 OS_dist_road <- "OS/NDevonDart_proximity_rasters/Distance_to_Road.tif"
 OS_dist_surfacewater <- "OS/NDevonDart_proximity_rasters/Distance_to_SurfaceWater.tif"
 OS_dist_tidalwater <- "OS/NDevonDart_proximity_rasters/Distance_to_TidalWater.tif"
+#OS_dist_tidalwater2 <- "OS/NDevonDart_proximity_rasters/Distance_to_TidalWater2.tif"
 OS_dist_woodland <- "OS/NDevonDart_proximity_rasters/Distance_to_Woodland.tif"
 bioclim_max_temp <- "Bioclim/bioclim_max_temp.tif"
 bioclim_min_temp <- "Bioclim/bioclim_min_temp.tif"
@@ -71,7 +72,7 @@ list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
                      S2_winter_rededge8a=c(S2_winter, 7),
                      S2_winter_nir=c(S2_winter, 8),
                      S2_winter_swir1=c(S2_winter, 9),
-                     S2_winter_swir2=c(S2_winter, 10), 
+                     S2_winter_swir2=c(S2_winter, 10),
                      sar_summer_vh=c(sar_summer,1),
                      sar_summer_vv=c(sar_summer,2),
                      sar_winter_vh=c(sar_winter,1),
@@ -81,11 +82,11 @@ list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
                      LSU_summer_PV=c(LSU_summer,3),
                      LSU_winter_NPV=c(LSU_winter,1),
                      LSU_winter_S=c(LSU_winter,2),
-                     LSU_winter_PV=c(LSU_winter,3),                   
-                     height=c(height,1), 
-                     slope=c(slope,1), 
-                     aspect=c(aspect, 1), 
-                     vectormap=c(OS_VectorMap, 1, "mode"), 
+                     LSU_winter_PV=c(LSU_winter,3),
+                     height=c(height,1),
+                     slope=c(slope,1),
+                     aspect=c(aspect, 1),
+                     vectormap=c(OS_VectorMap, 1, "mode"),
                      S2_summer_blue_median=c(S2_summer, 1, "median"),
                      S2_summer_green_median=c(S2_summer, 2, "median"),
                      S2_summer_red_median=c(S2_summer, 3, "median"),
@@ -137,8 +138,9 @@ list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
                      dist_building=c(OS_dist_building,1),
                      dist_surfacewater=c(OS_dist_surfacewater,1),
                      dist_woodland=c(OS_dist_woodland,1),
-                     dist_foreshore=c(OS_dist_foreshore,1), 
+                     dist_foreshore=c(OS_dist_foreshore,1),
                      dist_tidalwater=c(OS_dist_tidalwater,1),
+                     #dist_tidalwater2=c(OS_dist_tidalwater2,1),
                      min_temp=c(bioclim_min_temp,1),
                      max_temp=c(bioclim_max_temp,1),
                      annual_rainfall=c(bioclim_annual_rainfall,1),
@@ -154,14 +156,14 @@ list.rasters <- list(S2_summer_blue=c(S2_summer, 1),
 
 segmentation.raster <-raster("Segmentation/Living_Maps_Segmentation_Dartmoor.tif")
 
-# Calculate the zonal stats for each segmented polygon.  This takes a long time to run!!!!  
-start <- proc.time()
-zonal_stats_seg <- zonal_stats_raster(segmentation.raster, list.rasters, clusters=10, tiles=5)
-proc.time()-start
+# Calculate the zonal stats for each segmented polygon.  This takes a long time to run!!!!
+#start <- proc.time()
+#zonal_stats_seg <- zonal_stats_raster(segmentation.raster, list.rasters, clusters=10, tiles=5)
+#proc.time()-start
 
-#Save the results as an intermediate file (just in case)
-zonal_stats_seg <- write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg.txt", sep="\t")
-zonal_stats_seg <- read.table("zonal_stats/zonal_stats_seg.txt", sep="\t", header=T)
+#Save the results as an intermediate file (just in case)1
+#zonal_stats_seg <- write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg_all_20170203.txt", sep="\t")
+zonal_stats_seg <- read.table("zonal_stats/zonal_stats_seg_all_20170202.txt", sep="\t", header=T)
 
 # Append area and perimeter from shapefile if not already calculated
 if (!"area_ratio1" %in% names(zonal_stats_seg))
@@ -171,44 +173,75 @@ if (!"area_ratio1" %in% names(zonal_stats_seg))
   zonal_stats_seg$area_ratio2 <- with(zonal_stats_seg, Shape_Leng/sqrt(Shape_Area))
 }
 
+
+# Ensure that catagorical data doesn't having any missing or inf values
+zonal_stats_seg[is.na(zonal_stats_seg)] <- 0
+zonal_stats_seg[sapply(zonal_stats_seg, is.infinite)] <- 0
+
 # Impute missing values for all S1 and S2 columns, excluding max and min statistics
-impute.cols <- grepl("S2|sar|LSU",colnames(zonal_stats_seg)) & !grepl("max|min",colnames(zonal_stats_seg))
+impute.cols <- grepl("S2|sar|LSU|vectormap|dist_tidalwater|dist_building",colnames(zonal_stats_seg)) & !grepl("max|min",colnames(zonal_stats_seg))
 zonal_stats.imputed <- impute.knn(as.matrix(zonal_stats_seg[,impute.cols]))
 zonal_stats_seg <- cbind(zonal_stats_seg[,!impute.cols], zonal_stats.imputed$data[,colnames(zonal_stats_seg)[impute.cols]])
 
-# Calculate NDVI and NDWI
+## Indices ##
+#############
+
+#Calculate NDVI and NDWI
 zonal_stats_seg$S2_summer_ndvi <- with(zonal_stats_seg, (S2_summer_nir - S2_summer_red)/(S2_summer_nir + S2_summer_red))
 zonal_stats_seg$S2_summer_ndwi <- with(zonal_stats_seg, (S2_summer_nir - S2_summer_swir1)/(S2_summer_nir + S2_summer_swir1))
 zonal_stats_seg$S2_winter_ndvi <- with(zonal_stats_seg, (S2_winter_nir - S2_winter_red)/(S2_winter_nir + S2_winter_red))
 zonal_stats_seg$S2_winter_ndwi <- with(zonal_stats_seg, (S2_winter_nir - S2_winter_swir1)/(S2_winter_nir + S2_winter_swir1))
 
-# Indeces identified as important:
+# Top 40 indices identified as important ()
 zonal_stats_seg$sar_winter_ndvhvvi <- with(zonal_stats_seg, (sar_winter_vh_median - sar_winter_vv_median)/(sar_winter_vh_median + sar_winter_vv_median))
+
 zonal_stats_seg$s2_summer_greenmrededge5m_di <- with(zonal_stats_seg, (S2_summer_green_median / S2_summer_rededge5_median))
 zonal_stats_seg$s2_summer_bluerededge5_di <- with(zonal_stats_seg, (S2_summer_blue / S2_summer_rededge5))
 zonal_stats_seg$s2_summer_redmrededge5m_di <- with(zonal_stats_seg, (S2_summer_red_median / S2_summer_rededge5_median))
 zonal_stats_seg$s2_summer_rededge6rededge7_ndi <- with(zonal_stats_seg, (S2_summer_rededge6 - S2_summer_rededge7)/(S2_summer_rededge6 + S2_summer_rededge7))
 zonal_stats_seg$s2_summer_redmSWIR2m_di <- with(zonal_stats_seg, (S2_summer_red_median / S2_summer_swir2_median))
+#zonal_stats_seg$S2_summer_rededge6_S2_summer_rededge7_ri <- with(zonal_stats_seg, (S2_summer_rededge6 : S2_summer_rededge7))
 zonal_stats_seg$s2_summer_rededge6mrededge7m_ndi <- with(zonal_stats_seg, (S2_summer_rededge6_median - S2_summer_rededge7_median)/(S2_summer_rededge6_median + S2_summer_rededge7_median))
 zonal_stats_seg$s2_summer_redrededge5_di <- with(zonal_stats_seg, (S2_summer_red / S2_summer_rededge5))
 zonal_stats_seg$s2_summer_redswir2_di <- with(zonal_stats_seg, (S2_summer_red / S2_summer_swir2))
-zonal_stats_seg$s2_summer_redswir2_di <- with(zonal_stats_seg, (S2_summer_red / S2_summer_swir2))
 zonal_stats_seg$s2_summer_bluegreen_di <- with(zonal_stats_seg, (S2_summer_blue / S2_summer_green))
+#zonal_stats_seg$S2_summer_blue_S2_summer_red_ri <- with(zonal_stats_seg, (S2_summer_blue : S2_summer_red))
 zonal_stats_seg$s2_summer_blueswir1_di <- with(zonal_stats_seg, (S2_summer_blue / S2_summer_swir1))
 zonal_stats_seg$s2_summer_redswir1_di <- with(zonal_stats_seg, (S2_summer_red / S2_summer_swir1))
 zonal_stats_seg$s2_summer_greenrededge5_di <- with(zonal_stats_seg, (S2_summer_green / S2_summer_rededge5))
 zonal_stats_seg$s2_summer_redmSWIR1m_di <- with(zonal_stats_seg, (S2_summer_red_median / S2_summer_swir1_median))
+#zonal_stats_seg$S2_summer_green_S2_summer_swir1_ri <- with(zonal_stats_seg, (S2_summer_green : S2_summer_swir1))
 
-# Ensure that catagorical data doesn't having any missing values
-zonal_stats_seg$vectormap[is.na(zonal_stats_seg$vectormap)] <- 0
-zonal_stats_seg$height[is.na(zonal_stats_seg$height)] <- 0
-zonal_stats_seg$slope[is.na(zonal_stats_seg$slope)] <- 0
-zonal_stats_seg$aspect[is.na(zonal_stats_seg$aspect)] <- 0
-zonal_stats_seg$min_temp[is.na(zonal_stats_seg$min_temp)] <- 0
-zonal_stats_seg$max_temp[is.na(zonal_stats_seg$max_temp)] <- 0
-zonal_stats_seg$annual_rainfall[is.na(zonal_stats_seg$annual_rainfall)] <- 0
 
-write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg_all.txt", sep="\t")
+#Seasonal difference indices
+zonal_stats_seg$S2_summer_swir2m_S2_winter_rededge5m_di <- with(zonal_stats_seg, (S2_summer_swir2_median / S2_winter_rededge5_median))
+
+zonal_stats_seg$S2_summer_swir1_S2_winter_swir1_di <- with(zonal_stats_seg, (S2_summer_swir1 / S2_winter_swir1))
+
+zonal_stats_seg$S2_summer_rededge6_S2_winter_swir1_di <- with(zonal_stats_seg, (S2_summer_rededge6 / S2_winter_swir1))
+
+zonal_stats_seg$S2_summer_swir1m_S2_winter_swir1m_di <- with(zonal_stats_seg, (S2_summer_swir1_median / S2_winter_swir1_median))
+
+zonal_stats_seg$S2_summer_redm_S2_winter_rededge5m_di <- with(zonal_stats_seg, (S2_summer_red_median / S2_winter_rededge5_median))
+
+zonal_stats_seg$S2_summer_swir2sd_S2_winter_redsd_di <- with(zonal_stats_seg, (S2_summer_swir2_sd / S2_winter_red_sd))
+
+zonal_stats_seg$LSU_summer_PV_LSU_winter_S_ndi <- with(zonal_stats_seg, (LSU_summer_PV - LSU_winter_S)/(LSU_summer_PV + LSU_winter_S))
+
+zonal_stats_seg$S2_summer_nir_S2_winter_rededge6_di <- with(zonal_stats_seg, (S2_summer_nir / S2_winter_rededge6))
+
+zonal_stats_seg$LSU_summer_NPV_LSU_winter_NPV_di <- with(zonal_stats_seg, (LSU_summer_NPV / LSU_winter_NPV))
+
+zonal_stats_seg$S2_summer_nirsd_S2_winter_rededge7sd_di <- with(zonal_stats_seg, (S2_summer_nir_sd / S2_winter_rededge7_sd))
+zonal_stats_seg$S2_summer_redsd_S2_winter_bluesd_di <- with(zonal_stats_seg, (S2_summer_red_sd / S2_winter_blue_sd))
+
+
+# Ensure that catagorical data doesn't having any missing or inf values
+zonal_stats_seg[is.na(zonal_stats_seg)] <- 0
+zonal_stats_seg[sapply(zonal_stats_seg, is.infinite)] <- 0
+
+
+write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg_all_20170203.txt", sep="\t")
 
 #############################################################################################
 #
@@ -220,7 +253,7 @@ nmin <- 10 ### Minimum number of training points per class
 
 if (!exists("zonal_stats_seg"))
 {
-   zonal_stats_seg <- read.table("zonal_stats/zonal_stats_seg_all.txt", sep="\t", header=T, as.is=T)
+   zonal_stats_seg <- read.table("zonal_stats/zonal_stats_seg_all_20170203.txt", sep="\t", header=T, as.is=T)
 }
 segmentation.raster <-raster("Segmentation/Living_Maps_Segmentation_Dartmoor.tif")
 
@@ -307,9 +340,9 @@ zonal_stats_seg$vectormap <- as.factor(zonal_stats_seg$vectormap)
 training.data$Feature_De <- as.factor(as.character(training.data$Feature_De))
 
 # Predict detailed habitats using random forest
-#Run for only the top 40 most important variables
+#Run for only the top 42 most important variables
 M.rf.detailed.all <- randomForest(Feature_De ~ ., data=training.data[c(2,5:ncol(training.data))], na.action=na.omit)
-i <- colnames(training.data) %in% c(rownames(M.rf.detailed.all$importance)[order(M.rf.detailed.all$importance, decreasing=T)][1:38],"Feature_De")
+i <- colnames(training.data) %in% c(rownames(M.rf.detailed.all$importance)[order(M.rf.detailed.all$importance, decreasing=T)][1:100],"Feature_De")
 M.rf.detailed <- randomForest(Feature_De ~ ., data=training.data[i], na.action=na.omit)
 
 # Calculate confusion matrix
@@ -322,19 +355,32 @@ results.detailed <- predict(M.rf.detailed, zonal_stats_seg, type="response", pro
 # Combine results with segmentation polygons and save to new shapefile
 results.rf <- data.frame(ID=zonal_stats_seg$ID, detailed=results.detailed)
 segmentation.p <- merge(segmentation.shp, results.rf, by="ID")
-writeOGR(segmentation.p, "Outputs/Living_Maps_Dartmoor_RF_Detailed.shp", "Living_Maps_Dartmoor_RF_Detailed", driver="ESRI Shapefile", overwrite=T)
+writeOGR(segmentation.p, "Outputs/Living_Maps_Dartmoor_RF_Detailed_20170202.shp", "Living_Maps_Dartmoor_RF_Detailed_20170202", driver="ESRI Shapefile", overwrite=T)
 rm(segmentation.p)
 
 ###############################################################################
 
 #Create a variable called confusion matrix - broad classes
-cm <- broadclass.confusion.matrix(training.data.test$Feature_De, training.data.test$Feature_Ty, p)
+cm1 <- broadclass.confusion.matrix(training.data.test$Feature_De, training.data.test$Feature_Ty, p)
 
-#plot
-barplot.confusion.matrix(cm)
+graph <- barplot.confusion.matrix(cm1)
 
+#Adjust margins
+graph <- graph + theme(plot.margin = unit(c(1,1,1,1), "cm"))
 
-#Matt's randomforest tuning
+graph
+
+#Create a variable called confusion matrix 2 - detailed classes
+cm2 <- broadclass.confusion.matrix(training.data.test$Feature_De, training.data.test$Feature_De, p)
+
+graph <- barplot.confusion.matrix(cm2)
+
+#Adjust margins
+graph <- graph + theme(plot.margin = unit(c(1,1,1,3), "cm"))
+
+graph
+
+# Matt's randomforest tuning
 # ###############################################################################
 # 
 # 
