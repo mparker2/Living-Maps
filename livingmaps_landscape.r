@@ -161,7 +161,7 @@ segmentation.raster <-raster("Segmentation/Living_Maps_Segmentation_Dartmoor.tif
 #zonal_stats_seg <- zonal_stats_raster(segmentation.raster, list.rasters, clusters=10, tiles=5)
 #proc.time()-start
 
-#Save the results as an intermediate file (just in case)1
+#Save the results as an intermediate file (just in case)
 #zonal_stats_seg <- write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg_all_20170203.txt", sep="\t")
 zonal_stats_seg <- read.table("zonal_stats/zonal_stats_seg_all_20170202.txt", sep="\t", header=T)
 
@@ -173,13 +173,12 @@ if (!"area_ratio1" %in% names(zonal_stats_seg))
   zonal_stats_seg$area_ratio2 <- with(zonal_stats_seg, Shape_Leng/sqrt(Shape_Area))
 }
 
-
 # Ensure that catagorical data doesn't having any missing or inf values
 zonal_stats_seg[is.na(zonal_stats_seg)] <- 0
 zonal_stats_seg[sapply(zonal_stats_seg, is.infinite)] <- 0
 
 # Impute missing values for all S1 and S2 columns, excluding max and min statistics
-impute.cols <- grepl("S2|sar|LSU|vectormap|dist_tidalwater|dist_building",colnames(zonal_stats_seg)) & !grepl("max|min",colnames(zonal_stats_seg))
+impute.cols <- grepl("S2|sar|LSU|dist_tidalwater|dist_building",colnames(zonal_stats_seg)) & !grepl("max|min",colnames(zonal_stats_seg))
 zonal_stats.imputed <- impute.knn(as.matrix(zonal_stats_seg[,impute.cols]))
 zonal_stats_seg <- cbind(zonal_stats_seg[,!impute.cols], zonal_stats.imputed$data[,colnames(zonal_stats_seg)[impute.cols]])
 
@@ -195,51 +194,40 @@ zonal_stats_seg$S2_winter_ndwi <- with(zonal_stats_seg, (S2_winter_nir - S2_wint
 # Top 40 indices identified as important ()
 zonal_stats_seg$sar_winter_ndvhvvi <- with(zonal_stats_seg, (sar_winter_vh_median - sar_winter_vv_median)/(sar_winter_vh_median + sar_winter_vv_median))
 
-zonal_stats_seg$s2_summer_greenmrededge5m_di <- with(zonal_stats_seg, (S2_summer_green_median / S2_summer_rededge5_median))
-zonal_stats_seg$s2_summer_bluerededge5_di <- with(zonal_stats_seg, (S2_summer_blue / S2_summer_rededge5))
-zonal_stats_seg$s2_summer_redmrededge5m_di <- with(zonal_stats_seg, (S2_summer_red_median / S2_summer_rededge5_median))
+zonal_stats_seg$s2_summer_greenmrededge5m_di <- with(zonal_stats_seg, (S2_summer_green_median - S2_summer_rededge5_median))
+zonal_stats_seg$s2_summer_bluerededge5_di <- with(zonal_stats_seg, (S2_summer_blue - S2_summer_rededge5))
+zonal_stats_seg$s2_summer_redmrededge5m_di <- with(zonal_stats_seg, (S2_summer_red_median - S2_summer_rededge5_median))
 zonal_stats_seg$s2_summer_rededge6rededge7_ndi <- with(zonal_stats_seg, (S2_summer_rededge6 - S2_summer_rededge7)/(S2_summer_rededge6 + S2_summer_rededge7))
-zonal_stats_seg$s2_summer_redmSWIR2m_di <- with(zonal_stats_seg, (S2_summer_red_median / S2_summer_swir2_median))
-#zonal_stats_seg$S2_summer_rededge6_S2_summer_rededge7_ri <- with(zonal_stats_seg, (S2_summer_rededge6 : S2_summer_rededge7))
+zonal_stats_seg$s2_summer_redmSWIR2m_di <- with(zonal_stats_seg, (S2_summer_red_median - S2_summer_swir2_median))
+zonal_stats_seg$S2_summer_rededge6_S2_summer_rededge7_ri <- with(zonal_stats_seg, (S2_summer_rededge6 / S2_summer_rededge7))
 zonal_stats_seg$s2_summer_rededge6mrededge7m_ndi <- with(zonal_stats_seg, (S2_summer_rededge6_median - S2_summer_rededge7_median)/(S2_summer_rededge6_median + S2_summer_rededge7_median))
-zonal_stats_seg$s2_summer_redrededge5_di <- with(zonal_stats_seg, (S2_summer_red / S2_summer_rededge5))
-zonal_stats_seg$s2_summer_redswir2_di <- with(zonal_stats_seg, (S2_summer_red / S2_summer_swir2))
-zonal_stats_seg$s2_summer_bluegreen_di <- with(zonal_stats_seg, (S2_summer_blue / S2_summer_green))
-#zonal_stats_seg$S2_summer_blue_S2_summer_red_ri <- with(zonal_stats_seg, (S2_summer_blue : S2_summer_red))
-zonal_stats_seg$s2_summer_blueswir1_di <- with(zonal_stats_seg, (S2_summer_blue / S2_summer_swir1))
-zonal_stats_seg$s2_summer_redswir1_di <- with(zonal_stats_seg, (S2_summer_red / S2_summer_swir1))
-zonal_stats_seg$s2_summer_greenrededge5_di <- with(zonal_stats_seg, (S2_summer_green / S2_summer_rededge5))
-zonal_stats_seg$s2_summer_redmSWIR1m_di <- with(zonal_stats_seg, (S2_summer_red_median / S2_summer_swir1_median))
-#zonal_stats_seg$S2_summer_green_S2_summer_swir1_ri <- with(zonal_stats_seg, (S2_summer_green : S2_summer_swir1))
-
+zonal_stats_seg$s2_summer_redrededge5_di <- with(zonal_stats_seg, (S2_summer_red - S2_summer_rededge5))
+zonal_stats_seg$s2_summer_redswir2_di <- with(zonal_stats_seg, (S2_summer_red - S2_summer_swir2))
+zonal_stats_seg$s2_summer_bluegreen_di <- with(zonal_stats_seg, (S2_summer_blue - S2_summer_green))
+zonal_stats_seg$S2_summer_blue_S2_summer_red_ri <- with(zonal_stats_seg, (S2_summer_blue / S2_summer_red))
+zonal_stats_seg$s2_summer_blueswir1_di <- with(zonal_stats_seg, (S2_summer_blue - S2_summer_swir1))
+zonal_stats_seg$s2_summer_redswir1_di <- with(zonal_stats_seg, (S2_summer_red - S2_summer_swir1))
+zonal_stats_seg$s2_summer_greenrededge5_di <- with(zonal_stats_seg, (S2_summer_green - S2_summer_rededge5))
+zonal_stats_seg$s2_summer_redmSWIR1m_di <- with(zonal_stats_seg, (S2_summer_red_median - S2_summer_swir1_median))
+zonal_stats_seg$S2_summer_green_S2_summer_swir1_ri <- with(zonal_stats_seg, (S2_summer_green / S2_summer_swir1))
 
 #Seasonal difference indices
-zonal_stats_seg$S2_summer_swir2m_S2_winter_rededge5m_di <- with(zonal_stats_seg, (S2_summer_swir2_median / S2_winter_rededge5_median))
-
-zonal_stats_seg$S2_summer_swir1_S2_winter_swir1_di <- with(zonal_stats_seg, (S2_summer_swir1 / S2_winter_swir1))
-
-zonal_stats_seg$S2_summer_rededge6_S2_winter_swir1_di <- with(zonal_stats_seg, (S2_summer_rededge6 / S2_winter_swir1))
-
-zonal_stats_seg$S2_summer_swir1m_S2_winter_swir1m_di <- with(zonal_stats_seg, (S2_summer_swir1_median / S2_winter_swir1_median))
-
-zonal_stats_seg$S2_summer_redm_S2_winter_rededge5m_di <- with(zonal_stats_seg, (S2_summer_red_median / S2_winter_rededge5_median))
-
-zonal_stats_seg$S2_summer_swir2sd_S2_winter_redsd_di <- with(zonal_stats_seg, (S2_summer_swir2_sd / S2_winter_red_sd))
-
+zonal_stats_seg$S2_summer_swir2m_S2_winter_rededge5m_di <- with(zonal_stats_seg, (S2_summer_swir2_median - S2_winter_rededge5_median))
+zonal_stats_seg$S2_summer_swir1_S2_winter_swir1_di <- with(zonal_stats_seg, (S2_summer_swir1 - S2_winter_swir1))
+zonal_stats_seg$S2_summer_rededge6_S2_winter_swir1_di <- with(zonal_stats_seg, (S2_summer_rededge6 - S2_winter_swir1))
+zonal_stats_seg$S2_summer_swir1m_S2_winter_swir1m_di <- with(zonal_stats_seg, (S2_summer_swir1_median - S2_winter_swir1_median))
+zonal_stats_seg$S2_summer_redm_S2_winter_rededge5m_di <- with(zonal_stats_seg, (S2_summer_red_median - S2_winter_rededge5_median))
+zonal_stats_seg$S2_summer_swir2sd_S2_winter_redsd_di <- with(zonal_stats_seg, (S2_summer_swir2_sd - S2_winter_red_sd))
 zonal_stats_seg$LSU_summer_PV_LSU_winter_S_ndi <- with(zonal_stats_seg, (LSU_summer_PV - LSU_winter_S)/(LSU_summer_PV + LSU_winter_S))
-
-zonal_stats_seg$S2_summer_nir_S2_winter_rededge6_di <- with(zonal_stats_seg, (S2_summer_nir / S2_winter_rededge6))
-
-zonal_stats_seg$LSU_summer_NPV_LSU_winter_NPV_di <- with(zonal_stats_seg, (LSU_summer_NPV / LSU_winter_NPV))
-
-zonal_stats_seg$S2_summer_nirsd_S2_winter_rededge7sd_di <- with(zonal_stats_seg, (S2_summer_nir_sd / S2_winter_rededge7_sd))
-zonal_stats_seg$S2_summer_redsd_S2_winter_bluesd_di <- with(zonal_stats_seg, (S2_summer_red_sd / S2_winter_blue_sd))
+zonal_stats_seg$S2_summer_nir_S2_winter_rededge6_di <- with(zonal_stats_seg, (S2_summer_nir - S2_winter_rededge6))
+zonal_stats_seg$LSU_summer_NPV_LSU_winter_NPV_di <- with(zonal_stats_seg, (LSU_summer_NPV - LSU_winter_NPV))
+zonal_stats_seg$S2_summer_nirsd_S2_winter_rededge7sd_di <- with(zonal_stats_seg, (S2_summer_nir_sd - S2_winter_rededge7_sd))
+zonal_stats_seg$S2_summer_redsd_S2_winter_bluesd_di <- with(zonal_stats_seg, (S2_summer_red_sd - S2_winter_blue_sd))
 
 
 # Ensure that catagorical data doesn't having any missing or inf values
 zonal_stats_seg[is.na(zonal_stats_seg)] <- 0
 zonal_stats_seg[sapply(zonal_stats_seg, is.infinite)] <- 0
-
 
 write.table(zonal_stats_seg, "zonal_stats/zonal_stats_seg_all_20170203.txt", sep="\t")
 
@@ -355,7 +343,7 @@ results.detailed <- predict(M.rf.detailed, zonal_stats_seg, type="response", pro
 # Combine results with segmentation polygons and save to new shapefile
 results.rf <- data.frame(ID=zonal_stats_seg$ID, detailed=results.detailed)
 segmentation.p <- merge(segmentation.shp, results.rf, by="ID")
-writeOGR(segmentation.p, "Outputs/Living_Maps_Dartmoor_RF_Detailed_20170202.shp", "Living_Maps_Dartmoor_RF_Detailed_20170202", driver="ESRI Shapefile", overwrite=T)
+writeOGR(segmentation.p, "Outputs/Living_Maps_Dartmoor_RF_Detailed_20170204.shp", "Living_Maps_Dartmoor_RF_Detailed_20170204", driver="ESRI Shapefile", overwrite=T)
 rm(segmentation.p)
 
 ###############################################################################
