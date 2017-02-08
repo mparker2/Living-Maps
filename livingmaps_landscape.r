@@ -353,9 +353,9 @@ probNFromProbs <- function(df, n=1) {
   return (response)
 }
 
-results.detailed.response1 <- classFromProbs(results.detailed.probs, n=1)
+results.detailed.response1 <- responseNFromProbs(results.detailed.probs, n=1)
 results.detailed.prob1 <- probNFromProbs(results.detailed.probs, n=1)
-results.detailed.response2 <- classFromProbs(results.detailed.probs, n=2)
+results.detailed.response2 <- responseNFromProbs(results.detailed.probs, n=2)
 results.detailed.prob2 <- probNFromProbs(results.detailed.probs, n=2)
 
 
