@@ -338,12 +338,39 @@ p <- predict(M.rf.detailed, training.data.test, type="response")
 confusion.matrix(training.data.test$Feature_De, p)
 
 # Predict classes for all polygons
-results.detailed <- predict(M.rf.detailed, zonal_stats_seg, type="response", progress="text")
+results.detailed.probs <- predict(M.rf.detailed, zonal_stats_seg,
+                                  type="vote", norm.votes=TRUE,
+                                  progress="text")
+
+responseNFromProbs <- function(df, n=1) {
+  columns <- colnames(df)
+  response <- apply(df, MARGIN=1, FUN=function(x) {columns[order(x, decreasing=TRUE)[n]]})
+  return (response)
+}
+
+probNFromProbs <- function(df, n=1) {
+  response <- apply(df, MARGIN=1, FUN=function(x) {sort(x, decreasing=TRUE)[n]})
+  return (response)
+}
+
+results.detailed.response1 <- classFromProbs(results.detailed.probs, n=1)
+results.detailed.prob1 <- probNFromProbs(results.detailed.probs, n=1)
+results.detailed.response2 <- classFromProbs(results.detailed.probs, n=2)
+results.detailed.prob2 <- probNFromProbs(results.detailed.probs, n=2)
+
 
 # Combine results with segmentation polygons and save to new shapefile
-results.rf <- data.frame(ID=zonal_stats_seg$ID, detailed=results.detailed)
+results.rf <- data.frame(ID=zonal_stats_seg$ID,
+                         main_pred=results.detailed.response1,
+                         main_prob=results.detailed.prob1,
+                         secondary_pred=results.detailed.response2,
+                         secondary_prob=results.detailed.prob2)
 segmentation.p <- merge(segmentation.shp, results.rf, by="ID")
-writeOGR(segmentation.p, "Outputs/Living_Maps_Dartmoor_RF_Detailed_20170204.shp", "Living_Maps_Dartmoor_RF_Detailed_20170204", driver="ESRI Shapefile", overwrite=T)
+writeOGR(segmentation.p,
+         "Outputs/Living_Maps_Dartmoor_RF_Detailed_20170204.shp",
+         "Living_Maps_Dartmoor_RF_Detailed_20170204",
+         driver="ESRI Shapefile",
+         overwrite=T)
 rm(segmentation.p)
 
 ###############################################################################
